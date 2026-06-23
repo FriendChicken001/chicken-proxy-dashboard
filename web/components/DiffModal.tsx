@@ -38,6 +38,28 @@ function diffLines(a: string, b: string): DiffLine[] {
   return stack.reverse();
 }
 
+const methodColors: Record<string, string> = {
+  GET: "bg-[#1c2c44] text-[#7eb0ff]",
+  POST: "bg-[#14342a] text-[#4ade80]",
+  PUT: "bg-[#34290f] text-[#fbbf24]",
+  DELETE: "bg-[#361a1a] text-[#f87171]",
+};
+const methodColorFallback = "bg-[#2a2440] text-[#c4b5fd]";
+function methodClass(method: string): string {
+  return methodColors[method] ?? methodColorFallback;
+}
+
+const statusColors: Record<string, string> = {
+  "s-2": "text-[var(--green)]",
+  "s-3": "text-[var(--accent)]",
+  "s-4": "text-[var(--amber)]",
+  "s-5": "text-[var(--red)]",
+  "s-pending": "text-[var(--faint)]",
+};
+function statusColorClass(code: number | null): string {
+  return statusColors[statusClass(code)] ?? "text-[var(--faint)]";
+}
+
 type Tab = "body" | "headers";
 
 export default function DiffModal({
@@ -76,56 +98,74 @@ export default function DiffModal({
 
   return (
     <>
-      <div className="overlay" onClick={onClose} />
-      <div className="modal diff-modal">
-        <div className="diff-header">
-          <button className="cm-close" onClick={onClose}>✕</button>
-          <div className="diff-title">Response diff</div>
+      <div className="fixed inset-0 bg-black/50 z-[30]" onClick={onClose} />
+      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[min(860px,96vw)] max-h-[90vh] overflow-hidden bg-[var(--bg-2)] border border-[var(--border)] rounded-[14px] z-[31] flex flex-col shadow-[0_30px_80px_rgba(0,0,0,0.5)]">
+        <div className="flex items-center gap-[10px] px-5 py-4 border-b border-[var(--border)] flex-shrink-0">
+          <button
+            className="float-none bg-none border-none text-[var(--muted)] text-[16px] cursor-pointer px-[6px] py-[2px] rounded-[5px] hover:text-[var(--text)] hover:bg-[var(--panel-2)] transition-colors"
+            onClick={onClose}
+          >✕</button>
+          <div className="text-[15px] font-semibold flex-1">Response diff</div>
           {!loading && (
-            <div className="diff-meta">
-              <span className="diff-badge added">+{added}</span>
-              <span className="diff-badge removed">−{removed}</span>
+            <div className="flex gap-[6px]">
+              <span className="text-[11px] font-bold px-2 py-[2px] rounded-full tabular-nums bg-[color-mix(in_srgb,var(--green)_15%,transparent)] text-[var(--green)]">+{added}</span>
+              <span className="text-[11px] font-bold px-2 py-[2px] rounded-full tabular-nums bg-[color-mix(in_srgb,var(--red)_15%,transparent)] text-[var(--red)]">−{removed}</span>
             </div>
           )}
         </div>
 
-        {/* flow labels */}
         {!loading && (
-          <div className="diff-labels">
-            <div className="diff-label a">
-              <span className={`method m-${a.method}`}>{a.method}</span>
-              <span className={`status ${statusClass(a.status_code)}`}>{a.status_code}</span>
-              <span className="diff-label-path">{a.path}</span>
-              <span className="diff-label-tag">A</span>
+          <div className="grid border-b border-[var(--border)] flex-shrink-0" style={{ gridTemplateColumns: "1fr 1fr" }}>
+            <div className="flex items-center gap-2 px-4 py-[10px] text-xs relative border-r border-[var(--border)] bg-[color-mix(in_srgb,var(--red)_4%,transparent)]">
+              <span className={`font-mono text-[11px] font-semibold px-[7px] py-[2px] rounded-[5px] inline-block min-w-[48px] text-center ${methodClass(a.method)}`}>{a.method}</span>
+              <span className={`tabular-nums font-mono text-xs ${statusColorClass(a.status_code)}`}>{a.status_code}</span>
+              <span className="font-mono text-[11px] text-[var(--muted)] overflow-hidden text-ellipsis whitespace-nowrap flex-1">{a.path}</span>
+              <span className="text-[10px] font-[800] tracking-[0.06em] px-[6px] py-[1px] rounded flex-shrink-0 bg-[color-mix(in_srgb,var(--red)_20%,transparent)] text-[var(--red)]">A</span>
             </div>
-            <div className="diff-label b">
-              <span className={`method m-${b.method}`}>{b.method}</span>
-              <span className={`status ${statusClass(b.status_code)}`}>{b.status_code}</span>
-              <span className="diff-label-path">{b.path}</span>
-              <span className="diff-label-tag">B</span>
+            <div className="flex items-center gap-2 px-4 py-[10px] text-xs relative bg-[color-mix(in_srgb,var(--green)_4%,transparent)]">
+              <span className={`font-mono text-[11px] font-semibold px-[7px] py-[2px] rounded-[5px] inline-block min-w-[48px] text-center ${methodClass(b.method)}`}>{b.method}</span>
+              <span className={`tabular-nums font-mono text-xs ${statusColorClass(b.status_code)}`}>{b.status_code}</span>
+              <span className="font-mono text-[11px] text-[var(--muted)] overflow-hidden text-ellipsis whitespace-nowrap flex-1">{b.path}</span>
+              <span className="text-[10px] font-[800] tracking-[0.06em] px-[6px] py-[1px] rounded flex-shrink-0 bg-[color-mix(in_srgb,var(--green)_20%,transparent)] text-[var(--green)]">B</span>
             </div>
           </div>
         )}
 
-        {/* tabs */}
-        <div className="tabs diff-tabs">
-          <span className={`tab ${tab === "body" ? "on" : ""}`} onClick={() => setTab("body")}>Body</span>
-          <span className={`tab ${tab === "headers" ? "on" : ""}`} onClick={() => setTab("headers")}>Headers</span>
+        <div className="flex gap-1 px-4 border-b border-[var(--border)] flex-shrink-0">
+          <span
+            className={`px-[14px] py-[9px] cursor-pointer text-xs border-b-2 transition-colors ${tab === "body" ? "text-[var(--text)] border-[var(--accent)]" : "text-[var(--muted)] border-transparent"}`}
+            onClick={() => setTab("body")}
+          >Body</span>
+          <span
+            className={`px-[14px] py-[9px] cursor-pointer text-xs border-b-2 transition-colors ${tab === "headers" ? "text-[var(--text)] border-[var(--accent)]" : "text-[var(--muted)] border-transparent"}`}
+            onClick={() => setTab("headers")}
+          >Headers</span>
         </div>
 
-        <div className="diff-body">
+        <div className="flex-1 overflow-auto">
           {loading ? (
-            <div className="diff-loading">Loading…</div>
+            <div className="text-[var(--faint)] text-[13px] px-5 py-6">Loading…</div>
           ) : lines.length === 0 ? (
-            <div className="diff-empty">No differences</div>
+            <div className="text-[var(--faint)] text-[13px] px-5 py-6">No differences</div>
           ) : (
-            <pre className="diff-pre">
+            <pre className="m-0 py-2 font-mono text-xs leading-[1.6]">
               {lines.map((line, i) => (
-                <div key={i} className={`diff-line diff-${line.type}`}>
-                  <span className="diff-gutter">
+                <div
+                  key={i}
+                  className={`flex hover:bg-[var(--panel)] ${
+                    line.type === "added" ? "bg-[color-mix(in_srgb,var(--green)_10%,transparent)]" :
+                    line.type === "removed" ? "bg-[color-mix(in_srgb,var(--red)_10%,transparent)]" :
+                    ""
+                  }`}
+                >
+                  <span className={`w-8 flex-shrink-0 text-center text-xs select-none ${
+                    line.type === "added" ? "text-[var(--green)]" :
+                    line.type === "removed" ? "text-[var(--red)]" :
+                    "text-[var(--faint)]"
+                  }`}>
                     {line.type === "added" ? "+" : line.type === "removed" ? "−" : " "}
                   </span>
-                  <span className="diff-text">{line.text}</span>
+                  <span className="flex-1 whitespace-pre overflow-visible pr-4">{line.text}</span>
                 </div>
               ))}
             </pre>
