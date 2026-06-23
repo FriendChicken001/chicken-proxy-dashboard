@@ -10,17 +10,20 @@ traffic charts, full request inspection, and response mocking.
                │
         mitm_dashboard.py  (Tornado server on :8081, REST + WebSocket)
                │
-        Next.js app  (http://localhost:3000)
+        Next.js app  (http://localhost:4444)
 ```
 
 ## Features
 
 - **Live log** – every request/response streamed over WebSocket as it happens.
-- **Inspect** – click any flow for full request/response headers, query params,
-  and (text) bodies.
+- **Inspect** – click any flow for full request/response headers, query params, and (text) bodies.
+- **Resend** – replay any captured request directly from the detail drawer.
 - **Stats & charts** – requests/sec, top hosts with one-click traffic filter.
-- **Mock** – right-click any flow → return a canned response for matching
-  requests; mocked flows are tagged 🎭 in the log. Export/import mock rules as JSON.
+- **Mock** – right-click any flow → return a canned response for matching requests; mocked flows are tagged 🎭 in the log.
+- **Diff** – compare two response bodies side-by-side with LCS line diffing.
+- **Pin** – pin flows to keep them at the top of the log.
+- **Body search** – search across all captured request/response bodies.
+- **Connect guide** – step-by-step proxy setup for iOS, Android, physical devices, and Flutter.
 
 ---
 
