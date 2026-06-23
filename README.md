@@ -1,4 +1,4 @@
-# mitmproxy dashboard
+# ChickenProxy Dashboard
 
 A live web dashboard for [mitmproxy](https://mitmproxy.org). A mitmproxy **addon**
 captures every intercepted flow and serves it over HTTP + WebSocket. A
