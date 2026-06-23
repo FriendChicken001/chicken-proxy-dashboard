@@ -35,24 +35,23 @@ export default function ContextMenu({
     };
   }, [onClose]);
 
-  // Keep the menu inside the viewport.
   const left = Math.min(x, (typeof window !== "undefined" ? window.innerWidth : x) - 220);
   const top = Math.min(y, (typeof window !== "undefined" ? window.innerHeight : y) - items.length * 36 - 12);
 
   return (
     <div
-      className="ctx-menu"
+      className="fixed z-[40] min-w-[200px] bg-[var(--panel)] border border-[var(--border)] rounded-[9px] p-[5px] shadow-[0_16px_44px_rgba(0,0,0,0.5)]"
       style={{ left, top }}
       onClick={(e) => e.stopPropagation()}
       onContextMenu={(e) => e.preventDefault()}
     >
       {items.map((it, i) =>
         it.separator ? (
-          <div key={i} className="ctx-sep" />
+          <div key={i} className="h-px bg-[var(--border)] my-[5px] mx-[6px]" />
         ) : (
           <button
             key={i}
-            className={`ctx-item ${it.danger ? "danger" : ""}`}
+            className={`block w-full text-left bg-transparent border-none text-[var(--text)] px-3 py-2 rounded-[6px] text-[13px] cursor-pointer hover:bg-[var(--panel-2)] ${it.danger ? "hover:bg-[#361a1a] hover:text-[var(--red)]" : ""}`}
             onClick={() => {
               it.onClick();
               onClose();
