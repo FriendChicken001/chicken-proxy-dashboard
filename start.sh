@@ -1,9 +1,9 @@
 #!/bin/bash
-NPM_BIN="/Users/Puvadon/.nvm/versions/node/v20.20.2/bin/npm"
+NPM_BIN="/opt/homebrew/bin/npm"
 MITM_BIN="/opt/homebrew/bin/mitmdump"
-export PATH="/Users/Puvadon/.nvm/versions/node/v20.20.2/bin:$PATH"
+export PATH="/opt/homebrew/bin:$PATH"
 
-DIR="/Users/Puvadon/Documents/chicken-proxy-dashboard"
+DIR="/Users/friendchicken/Documents/chicken-proxy-dashboard"
 PID_FILE="/tmp/chickenproxy.pid"
 LOG_FILE="/tmp/chickenproxy.log"
 
