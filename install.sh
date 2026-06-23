@@ -10,6 +10,7 @@ echo "📁 Project: $DIR"
 # Resolve tool paths at install time so start.sh works regardless of shell/nvm setup
 NPM_BIN="$(command -v npm 2>/dev/null || echo "")"
 MITM_BIN="$(command -v mitmdump 2>/dev/null || echo "")"
+NODE_DIR="$(dirname "$(command -v node 2>/dev/null || echo "")")"
 
 if [ -z "$NPM_BIN" ]; then
   echo "❌ npm not found. Install Node.js first."; exit 1
@@ -19,6 +20,7 @@ if [ -z "$MITM_BIN" ]; then
 fi
 
 echo "   npm      → $NPM_BIN"
+echo "   node dir → $NODE_DIR"
 echo "   mitmdump → $MITM_BIN"
 
 # --- start.sh ---
@@ -26,6 +28,7 @@ cat > "$DIR/start.sh" << SCRIPT
 #!/bin/bash
 NPM_BIN="$NPM_BIN"
 MITM_BIN="$MITM_BIN"
+export PATH="$NODE_DIR:\$PATH"
 
 DIR="$DIR"
 PID_FILE="/tmp/chickenproxy.pid"
