@@ -28,3 +28,6 @@ web/.env*.local
 
 # mitmproxy state
 .mitmproxy/
+
+# local mock rules — not shared across machines
+addon/mocks.json
