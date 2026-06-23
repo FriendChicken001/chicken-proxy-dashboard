@@ -28,7 +28,7 @@ export default function ConnectModal({ onClose, port }: { onClose: () => void; p
   const host =
     plat === "ios"
       ? conn?.loopback ?? "127.0.0.1"
-      : plat === "android" || plat === "flutter"
+      : plat === "android"
       ? conn?.android_emulator_host ?? "10.0.2.2"
       : conn?.lan_ip ?? "—";
 
