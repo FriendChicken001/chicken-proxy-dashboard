@@ -21,7 +21,7 @@ export default function StatsBar({ stats }: { stats: Stats | null }) {
         value={errors}
         tone={errors ? "amber" : undefined}
       />
-      <Card label="Avg latency" value={ms(s?.avg_ms ?? 0)} sub={`p95 ${ms(s?.p95_ms ?? 0)}`} />
+      <Card label="Avg latency" value={ms(s?.avg_ms ?? 0)} sub={undefined} />
       <Card label="Data received" value={bytes(s?.bytes_in ?? 0)} />
     </div>
   );
