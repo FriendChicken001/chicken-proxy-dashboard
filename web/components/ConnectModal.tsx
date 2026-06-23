@@ -88,8 +88,6 @@ export default function ConnectModal({ onClose, port }: { onClose: () => void; p
   );
 }
 
-/* ─── shared pieces ─────────────────────────────────────────────── */
-
 function CopyBlock({ text, large }: { text: string; large?: boolean }) {
   const [done, setDone] = useState(false);
   const copy = async () => {

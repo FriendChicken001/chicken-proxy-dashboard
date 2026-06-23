@@ -81,8 +81,6 @@ export default function Page() {
     setMockOpen(true);
   };
 
-  // Right-click "Mock": fetch full detail so the body prefills, with a
-  // summary-only fallback if the flow has already been trimmed.
   const mockFromFlow = async (flow: FlowSummary) => {
     try {
       const detail = await fetchFlowDetail(flow.id);
@@ -116,7 +114,7 @@ export default function Page() {
       if (q && !(`${f.host}${f.path}${f.method}`.toLowerCase().includes(q))) {
         if (bodySearch) {
           const cached = bodyCache[f.id];
-          if (cached === undefined) return true; // not yet cached, include
+          if (cached === undefined) return true;
           if (!cached.toLowerCase().includes(q)) return false;
         } else {
           return false;
