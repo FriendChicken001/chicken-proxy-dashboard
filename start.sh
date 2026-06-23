@@ -11,10 +11,9 @@ if [ -f "$PID_FILE" ]; then
   sleep 1
 fi
 
-echo "" > "$LOG_FILE"
+kill -9 $(lsof -ti :4444) 2>/dev/null || true
 
-# kill anything on port 4444
-lsof -ti :4444 | xargs kill -9 2>/dev/null || true
+echo "" > "$LOG_FILE"
 
 mitmdump -s "$DIR/addon/mitm_dashboard.py" -p 8888 >> "$LOG_FILE" 2>&1 &
 echo $! >> "$PID_FILE"
