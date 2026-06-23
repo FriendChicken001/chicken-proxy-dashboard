@@ -7,10 +7,25 @@ SCRATCH=$(mktemp -d)
 
 echo "📁 Project: $DIR"
 
+# Resolve tool paths at install time so start.sh works regardless of shell/nvm setup
+NPM_BIN="$(command -v npm 2>/dev/null || echo "")"
+MITM_BIN="$(command -v mitmdump 2>/dev/null || echo "")"
+
+if [ -z "$NPM_BIN" ]; then
+  echo "❌ npm not found. Install Node.js first."; exit 1
+fi
+if [ -z "$MITM_BIN" ]; then
+  echo "❌ mitmdump not found. Install mitmproxy first (brew install mitmproxy)."; exit 1
+fi
+
+echo "   npm      → $NPM_BIN"
+echo "   mitmdump → $MITM_BIN"
+
 # --- start.sh ---
 cat > "$DIR/start.sh" << SCRIPT
 #!/bin/bash
-export PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin
+NPM_BIN="$NPM_BIN"
+MITM_BIN="$MITM_BIN"
 
 DIR="$DIR"
 PID_FILE="/tmp/chickenproxy.pid"
@@ -24,10 +39,10 @@ fi
 
 echo "" > "\$LOG_FILE"
 
-mitmdump -s "\$DIR/addon/mitm_dashboard.py" -p 8888 >> "\$LOG_FILE" 2>&1 &
+"\$MITM_BIN" -s "\$DIR/addon/mitm_dashboard.py" -p 8888 >> "\$LOG_FILE" 2>&1 &
 echo \$! >> "\$PID_FILE"
 
-cd "\$DIR/web" && npm run dev >> "\$LOG_FILE" 2>&1 &
+cd "\$DIR/web" && "\$NPM_BIN" run dev >> "\$LOG_FILE" 2>&1 &
 echo \$! >> "\$PID_FILE"
 
 sleep 4
