@@ -140,16 +140,24 @@ def _lan_ip() -> str:
         s.close()
 
 
-def _connection_info(proxy_port: int) -> Dict[str, Any]:
+def _cert_path() -> str:
+    return os.path.expanduser("~/.mitmproxy/mitmproxy-ca-cert.cer")
+
+
+def _connection_info(proxy_port: int, dashboard_port: int) -> Dict[str, Any]:
+    lan = _lan_ip()
     return {
         "proxy_port": proxy_port,
-        "lan_ip": _lan_ip(),
+        "lan_ip": lan,
         "loopback": "127.0.0.1",
         # 10.0.2.2 is the standard Android emulator alias for the host loopback.
         "android_emulator_host": "10.0.2.2",
         # Genymotion uses a different host alias.
         "genymotion_host": "10.0.3.2",
-        "cert_url": "http://mitm.it",
+        # Served directly from addon — no need for traffic to go through proxy first.
+        "cert_url": f"http://{lan}:{dashboard_port}/cert",
+        "cert_url_loopback": f"http://127.0.0.1:{dashboard_port}/cert",
+        "cert_url_android": f"http://10.0.2.2:{dashboard_port}/cert",
     }
 
 
@@ -280,6 +288,19 @@ class ConnectionHandler(_CorsHandler):
         self.finish(json.dumps(self.store.connection_info()))
 
 
+class CertHandler(tornado.web.RequestHandler):
+    def get(self) -> None:
+        path = _cert_path()
+        if not os.path.exists(path):
+            self.set_status(404)
+            self.finish("Certificate not found — run mitmproxy at least once to generate it.")
+            return
+        self.set_header("Content-Type", "application/x-x509-ca-cert")
+        self.set_header("Content-Disposition", 'attachment; filename="mitmproxy-ca-cert.cer"')
+        with open(path, "rb") as fh:
+            self.finish(fh.read())
+
+
 class MocksHandler(_CorsHandler):
     def get(self) -> None:
         self.finish(json.dumps({"mocks": self.store.list_mocks()}))
@@ -358,12 +379,13 @@ class DashboardAddon:
                 (r"/api/connection", ConnectionHandler),
                 (r"/api/mocks", MocksHandler),
                 (r"/api/mocks/([^/]+)", MockItemHandler),
+                (r"/cert", CertHandler),
                 (r"/ws", FlowSocket),
             ],
             store=self,
         )
         try:
-            self._server = self._app.listen(port, address="127.0.0.1")
+            self._server = self._app.listen(port, address="0.0.0.0")
             proxy_port = _proxy_port()
             lan = _lan_ip()
             log.info(
@@ -416,7 +438,7 @@ class DashboardAddon:
 
     # --- connection info ---
     def connection_info(self) -> Dict[str, Any]:
-        return _connection_info(_proxy_port())
+        return _connection_info(_proxy_port(), ctx.options.dashboard_port)
 
     # --- mock rules ---
     def list_mocks(self) -> List[Dict[str, Any]]:

@@ -53,7 +53,9 @@ export interface Connection {
   loopback: string;
   android_emulator_host: string;
   genymotion_host: string;
-  cert_url: string;
+  cert_url: string;           // physical device (LAN IP)
+  cert_url_loopback?: string; // iOS simulator
+  cert_url_android?: string;  // Android emulator
 }
 
 export interface Stats {

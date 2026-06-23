@@ -76,8 +76,8 @@ export default function ConnectModal({ onClose, port }: { onClose: () => void; p
             </div>
 
             <div className="px-6 py-5 overflow-auto flex-1">
-              {plat === "ios"     && <IosSteps     port={port} certUrl={conn.cert_url} />}
-              {plat === "android" && <AndroidSteps host={host} port={port} certUrl={conn.cert_url} />}
+              {plat === "ios"     && <IosSteps     port={port} certUrl={conn.cert_url_loopback ?? conn.cert_url} />}
+              {plat === "android" && <AndroidSteps host={host} port={port} certUrl={conn.cert_url_android ?? conn.cert_url} />}
               {plat === "device"  && <DeviceSteps  ip={conn.lan_ip} port={port} certUrl={conn.cert_url} />}
               {plat === "flutter" && <FlutterSteps host={host} port={port} />}
             </div>
