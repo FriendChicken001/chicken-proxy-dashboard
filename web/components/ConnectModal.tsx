@@ -34,41 +34,48 @@ export default function ConnectModal({ onClose, port }: { onClose: () => void; p
 
   return (
     <>
-      <div className="overlay" onClick={onClose} />
-      <div className="modal cm-modal">
-        {/* header */}
-        <div className="cm-header">
-          <button className="cm-close" onClick={onClose}>✕</button>
-          <div className="cm-title">Connect a device</div>
-          <div className="cm-subtitle">Route traffic through the proxy to inspect it</div>
+      <div className="fixed inset-0 bg-black/50 z-[30]" onClick={onClose} />
+      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[min(680px,96vw)] max-h-[90vh] overflow-hidden bg-[var(--bg-2)] border border-[var(--border)] rounded-[14px] z-[31] flex flex-col shadow-[0_30px_80px_rgba(0,0,0,0.5)]">
+        <div className="px-6 pt-[22px] pb-[18px] border-b border-[var(--border)] flex-shrink-0">
+          <button
+            className="float-right bg-none border-none text-[var(--muted)] text-[16px] cursor-pointer px-[6px] py-[2px] rounded-[5px] hover:text-[var(--text)] hover:bg-[var(--panel-2)] transition-colors"
+            onClick={onClose}
+          >✕</button>
+          <div className="text-[17px] font-semibold text-[var(--text)]">Connect a device</div>
+          <div className="text-xs text-[var(--muted)] mt-[3px]">Route traffic through the proxy to inspect it</div>
         </div>
 
-        {err && <div className="modal-body err">⚠ Start the proxy service first — run <strong>🐔 Start ChickenProxy</strong> then reopen this.</div>}
+        {err && (
+          <div className="px-5 py-[18px] overflow-auto text-[var(--red)]">
+            ⚠ Start the proxy service first — run <strong>🐔 Start ChickenProxy</strong> then reopen this.
+          </div>
+        )}
 
         {conn && (
           <>
-            {/* platform picker */}
-            <div className="cm-platforms">
+            <div className="grid gap-2 px-6 py-4 border-b border-[var(--border)] flex-shrink-0" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
               {PLATFORMS.map(({ key, label, sub }) => (
                 <button
                   key={key}
-                  className={`cm-plat-card${plat === key ? " active" : ""}`}
+                  className={`flex flex-col items-center gap-1 px-2 py-3 rounded-[10px] border cursor-pointer transition-colors ${
+                    plat === key
+                      ? "border-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)]"
+                      : "border-[var(--border)] bg-[var(--panel)] hover:border-[var(--accent)] hover:bg-[var(--panel-2)]"
+                  }`}
                   onClick={() => setPlat(key)}
                 >
-                  <span className="cm-plat-label">{label}</span>
-                  <span className="cm-plat-sub">{sub}</span>
+                  <span className={`text-xs font-semibold ${plat === key ? "text-[var(--accent)]" : "text-[var(--text)]"}`}>{label}</span>
+                  <span className="text-[10px] text-[var(--muted)]">{sub}</span>
                 </button>
               ))}
             </div>
 
-            {/* proxy address */}
-            <div className="cm-addr-bar">
-              <div className="cm-addr-hint">Set your proxy to</div>
+            <div className="px-6 py-4 bg-[var(--bg)] border-b border-[var(--border)] flex-shrink-0">
+              <div className="text-[10px] uppercase tracking-[0.06em] text-[var(--faint)] mb-2">Set your proxy to</div>
               <CopyBlock text={`${host}:${port}`} large />
             </div>
 
-            {/* steps */}
-            <div className="cm-steps-wrap">
+            <div className="px-6 py-5 overflow-auto flex-1">
               {plat === "ios"     && <IosSteps     port={port} certUrl={conn.cert_url} />}
               {plat === "android" && <AndroidSteps host={host} port={port} certUrl={conn.cert_url} />}
               {plat === "device"  && <DeviceSteps  ip={conn.lan_ip} port={port} certUrl={conn.cert_url} />}
@@ -90,18 +97,25 @@ function CopyBlock({ text, large }: { text: string; large?: boolean }) {
     catch { /* blocked */ }
   };
   return (
-    <button className={`cm-copy-block${large ? " large" : ""}`} onClick={copy}>
-      <span className="cm-copy-text mono">{text}</span>
-      <span className="cm-copy-ico">{done ? "✓ Copied" : "⧉ Copy"}</span>
+    <button
+      className="flex items-center justify-between gap-3 w-full bg-[var(--panel)] border border-[var(--border)] rounded-[10px] px-4 py-3 cursor-pointer hover:border-[var(--accent)] hover:bg-[var(--panel-2)] transition-colors"
+      onClick={copy}
+    >
+      <span className={`font-mono text-[var(--text)] text-[13px] ${large ? "text-[18px] font-bold text-[var(--accent)]" : ""}`}>{text}</span>
+      <span className="text-[11px] text-[var(--muted)] whitespace-nowrap bg-[var(--panel-2)] border border-[var(--border)] rounded-[5px] px-2 py-[2px]">{done ? "✓ Copied" : "⧉ Copy"}</span>
     </button>
   );
 }
 
 function Step({ n, children }: { n: number; children: React.ReactNode }) {
   return (
-    <div className="cm-step">
-      <div className="cm-step-num">{n}</div>
-      <div className="cm-step-body">{children}</div>
+    <div className="flex gap-[14px]">
+      <div className="flex-shrink-0 w-6 h-6 rounded-full bg-[color-mix(in_srgb,var(--accent)_15%,transparent)] border border-[color-mix(in_srgb,var(--accent)_40%,transparent)] text-[var(--accent)] text-[11px] font-bold flex items-center justify-center">
+        {n}
+      </div>
+      <div className="flex-1 text-[13px] text-[var(--text)] leading-[1.6] pt-[2px] [&_code]:bg-[var(--panel-2)] [&_code]:border [&_code]:border-[var(--border)] [&_code]:px-[6px] [&_code]:py-[1px] [&_code]:rounded [&_code]:font-mono [&_code]:text-xs [&_strong]:text-[var(--text)]">
+        {children}
+      </div>
     </div>
   );
 }
@@ -113,26 +127,27 @@ function CodeBlock({ code }: { code: string }) {
     catch { /* blocked */ }
   };
   return (
-    <div className="cm-code-wrap">
-      <button className="cm-code-copy" onClick={copy}>{done ? "✓" : "⧉"}</button>
-      <pre className="cm-code">{code}</pre>
+    <div className="relative mt-[10px] mb-1 rounded-lg overflow-hidden border border-[var(--border)] bg-[var(--bg)]">
+      <button
+        className="absolute top-2 right-2 bg-[var(--panel)] border border-[var(--border)] rounded-[5px] text-[var(--muted)] text-xs px-2 py-[2px] cursor-pointer hover:text-[var(--text)] hover:border-[var(--accent)] transition-colors"
+        onClick={copy}
+      >{done ? "✓" : "⧉"}</button>
+      <pre className="m-0 py-3 pl-[14px] pr-10 font-mono text-xs text-[#cdd6e6] whitespace-pre overflow-x-auto leading-[1.5]">{code}</pre>
     </div>
   );
 }
 
-/* ─── platform steps ─────────────────────────────────────────────── */
-
 function IosSteps({ port, certUrl }: { port: number; certUrl: string }) {
   return (
-    <div className="cm-steps">
+    <div className="flex flex-col gap-5">
       <Step n={1}>
-        The iOS Simulator shares your Mac's network — set the <strong>macOS</strong> system proxy:<br />
+        The iOS Simulator shares your Mac&apos;s network — set the <strong>macOS</strong> system proxy:<br />
         System Settings → Network → your interface → Details → Proxies<br />
         Enable <strong>Web Proxy (HTTP)</strong> and <strong>Secure Web Proxy (HTTPS)</strong> →
         host <code>127.0.0.1</code>, port <code>{port}</code>
       </Step>
       <Step n={2}>
-        Open this URL in the Simulator's Safari to install the mitmproxy CA certificate:
+        Open this URL in the Simulator&apos;s Safari to install the mitmproxy CA certificate:
         <CopyBlock text={certUrl} />
       </Step>
       <Step n={3}>
@@ -146,7 +161,7 @@ function IosSteps({ port, certUrl }: { port: number; certUrl: string }) {
 
 function AndroidSteps({ host, port, certUrl }: { host: string; port: number; certUrl: string }) {
   return (
-    <div className="cm-steps">
+    <div className="flex flex-col gap-5">
       <Step n={1}>
         <strong>{host}</strong> is the emulator alias for your host machine.<br />
         Launch the AVD with the proxy pre-set:
@@ -169,15 +184,15 @@ function AndroidSteps({ host, port, certUrl }: { host: string; port: number; cer
 
 function DeviceSteps({ ip, port, certUrl }: { ip: string; port: number; certUrl: string }) {
   return (
-    <div className="cm-steps">
+    <div className="flex flex-col gap-5">
       <Step n={1}>
         Connect the device to the <strong>same Wi-Fi</strong> network as this machine.
       </Step>
       <Step n={2}>
         On the device: Wi-Fi settings → tap the network → Configure Proxy → Manual<br />
-        <div className="cm-kv">
-          <span className="cm-kv-k">Server</span><CopyBlock text={ip} />
-          <span className="cm-kv-k">Port</span><CopyBlock text={String(port)} />
+        <div className="grid mt-[10px]" style={{ gridTemplateColumns: "60px 1fr", gap: "6px 8px", alignItems: "center" }}>
+          <span className="text-[11px] text-[var(--muted)] uppercase tracking-[0.04em]">Server</span><CopyBlock text={ip} />
+          <span className="text-[11px] text-[var(--muted)] uppercase tracking-[0.04em]">Port</span><CopyBlock text={String(port)} />
         </div>
       </Step>
       <Step n={3}>
@@ -191,7 +206,7 @@ function DeviceSteps({ ip, port, certUrl }: { ip: string; port: number; certUrl:
 
 function FlutterSteps({ host, port }: { host: string; port: number }) {
   return (
-    <div className="cm-steps">
+    <div className="flex flex-col gap-5">
       <Step n={1}>
         Add <strong>HttpOverrides</strong> in <code>main.dart</code> to route all Dart HTTP
         traffic through the proxy and trust the mitmproxy certificate:
