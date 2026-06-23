@@ -1,7 +1,7 @@
 #!/bin/bash
 export PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin
 
-DIR="/Users/friendchicken/Desktop/mitmproxy-dashboard"
+DIR="$(cd "$(dirname "$0")" && pwd)"
 PID_FILE="/tmp/chickenproxy.pid"
 LOG_FILE="/tmp/chickenproxy.log"
 
