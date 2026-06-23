@@ -9,7 +9,7 @@ export default function StatsBar({ stats }: { stats: Stats | null }) {
     (s?.status_classes["4xx"] ?? 0) + (s?.status_classes["5xx"] ?? 0);
 
   return (
-    <div className="stats-row">
+    <div className="grid gap-3 px-5 pt-4 pb-1" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))" }}>
       <Card label="Total flows" value={s?.total ?? 0} />
       <Card
         label="Mocked"
@@ -27,6 +27,13 @@ export default function StatsBar({ stats }: { stats: Stats | null }) {
   );
 }
 
+const toneColors: Record<string, string> = {
+  green: "text-[var(--green)]",
+  red: "text-[var(--red)]",
+  amber: "text-[var(--amber)]",
+  purple: "text-[var(--purple)]",
+};
+
 function Card({
   label,
   value,
@@ -39,10 +46,10 @@ function Card({
   tone?: "red" | "green" | "amber" | "purple";
 }) {
   return (
-    <div className="card">
-      <div className="label">{label}</div>
-      <div className={`value ${tone ?? ""}`}>{value}</div>
-      {sub && <div className="sub">{sub}</div>}
+    <div className="bg-[var(--panel)] border border-[var(--border)] rounded-[10px] px-4 py-[14px]">
+      <div className="text-[var(--muted)] text-[11px] uppercase tracking-[0.04em]">{label}</div>
+      <div className={`text-2xl font-semibold mt-[6px] tabular-nums ${tone ? toneColors[tone] : "text-[var(--text)]"}`}>{value}</div>
+      {sub && <div className="text-[var(--faint)] text-[11px] mt-[2px]">{sub}</div>}
     </div>
   );
 }
