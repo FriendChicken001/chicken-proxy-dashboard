@@ -49,6 +49,26 @@ function textToHeaders(text: string): [string, string][] {
   });
 }
 
+const methodColors: Record<string, string> = {
+  GET: "bg-[#1c2c44] text-[#7eb0ff]",
+  POST: "bg-[#14342a] text-[#4ade80]",
+  PUT: "bg-[#34290f] text-[#fbbf24]",
+  DELETE: "bg-[#361a1a] text-[#f87171]",
+};
+const methodColorFallback = "bg-[#2a2440] text-[#c4b5fd]";
+function methodClass(method: string): string {
+  return methodColors[method] ?? methodColorFallback;
+}
+
+function mkStatusClass(code: number): string {
+  const s = Math.floor(code / 100);
+  if (s === 2) return "bg-[color-mix(in_srgb,var(--green)_12%,transparent)] text-[var(--green)]";
+  if (s === 3) return "bg-[color-mix(in_srgb,var(--amber)_12%,transparent)] text-[var(--amber)]";
+  if (s === 4) return "bg-[color-mix(in_srgb,var(--red)_12%,transparent)] text-[var(--red)]";
+  if (s === 5) return "bg-[color-mix(in_srgb,var(--red)_18%,transparent)] text-[var(--red)]";
+  return "bg-[color-mix(in_srgb,var(--muted)_12%,transparent)] text-[var(--muted)]";
+}
+
 export default function MockModal({
   mocks, initialDraft, onClose,
 }: {
@@ -90,34 +110,44 @@ export default function MockModal({
 
   return (
     <>
-      <div className="overlay" onClick={onClose} />
-      <div className="modal modal-wide">
+      <div className="fixed inset-0 bg-black/50 z-[30]" onClick={onClose} />
+      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[min(720px,95vw)] max-h-[88vh] overflow-hidden bg-[var(--bg-2)] border border-[var(--border)] rounded-[14px] z-[31] flex flex-col shadow-[0_30px_80px_rgba(0,0,0,0.5)]">
 
-        {/* header */}
-        <div className="mk-header">
-          <button className="cm-close" onClick={onClose}>✕</button>
-          <div className="mk-header-top">
-            <div className="mk-title">
-              Mock rules
-              {mocks.length > 0 && <span className="mk-count">{mocks.length}</span>}
-            </div>
+        <div className="relative px-5 pt-[18px] pb-[14px] border-b border-[var(--border)] flex-shrink-0">
+          <button
+            className="absolute top-[18px] right-5 bg-none border-none text-[var(--muted)] text-[16px] cursor-pointer px-[6px] py-[2px] rounded-[5px] hover:text-[var(--text)] hover:bg-[var(--panel-2)] transition-colors"
+            onClick={onClose}
+          >✕</button>
+          <div className="mb-3">
+            {!editing ? (
+              <div className="text-[16px] font-semibold text-[var(--text)] flex items-center gap-2">
+                Mock rules
+                {mocks.length > 0 && (
+                  <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-[6px] rounded-full text-[11px] font-semibold bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] text-[var(--accent)] border border-[color-mix(in_srgb,var(--accent)_30%,transparent)]">
+                    {mocks.length}
+                  </span>
+                )}
+              </div>
+            ) : (
+              <div className="text-[13px] text-[var(--muted)] font-medium mt-[2px]">
+                {editing.id ? "Edit rule" : "New rule"}
+              </div>
+            )}
           </div>
           {!editing && (
-            <div className="mk-search-wrap">
+            <div className="relative">
               <input
-                className="mk-search"
+                className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg py-2 pl-3 pr-8 text-[var(--text)] text-[13px] outline-none font-[inherit] transition-colors focus:border-[var(--accent)] placeholder:text-[var(--faint)]"
                 placeholder="Search by name or URL…"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
               />
               {search && (
-                <button className="mk-search-clear" onClick={() => setSearch("")}>✕</button>
+                <button
+                  className="absolute right-[10px] top-1/2 -translate-y-1/2 bg-none border-none text-[var(--muted)] cursor-pointer text-[13px] px-1 py-[2px] leading-none hover:text-[var(--text)] transition-colors"
+                  onClick={() => setSearch("")}
+                >✕</button>
               )}
-            </div>
-          )}
-          {editing && (
-            <div className="mk-editor-title">
-              {editing.id ? "Edit rule" : "New rule"}
             </div>
           )}
         </div>
@@ -130,55 +160,64 @@ export default function MockModal({
           />
         ) : (
           <>
-            <div className="modal-body mk-body">
+            <div className="p-0 overflow-auto flex-1">
               {mocks.length === 0 ? (
-                <div className="mk-empty">
-                  <div className="mk-empty-icon">🐔</div>
-                  <div className="mk-empty-text">No mock rules yet</div>
-                  <div className="mk-empty-sub">Create one here, or right-click any captured request → Mock this response</div>
+                <div className="flex flex-col items-center justify-center py-[52px] px-6 gap-2 text-center">
+                  <div className="text-[36px] mb-1">🐔</div>
+                  <div className="text-[14px] font-medium text-[var(--text)]">No mock rules yet</div>
+                  <div className="text-xs text-[var(--faint)] max-w-[340px] leading-[1.55]">Create one here, or right-click any captured request → Mock this response</div>
                 </div>
               ) : filtered.length === 0 ? (
-                <div className="mk-empty">
-                  <div className="mk-empty-text">No rules match "{search}"</div>
+                <div className="flex flex-col items-center justify-center py-[52px] px-6 gap-2 text-center">
+                  <div className="text-[14px] font-medium text-[var(--text)]">No rules match &ldquo;{search}&rdquo;</div>
                 </div>
               ) : (
-                <div className="mk-list">
+                <div className="flex flex-col py-[6px]">
                   {filtered.map(m => (
-                    <div key={m.id} className={`mk-row${m.enabled ? "" : " mk-off"}`}>
-                      {/* toggle */}
+                    <div
+                      key={m.id}
+                      className={`flex items-center gap-3 px-5 py-[10px] border-b border-[var(--border)] last:border-b-0 transition-colors hover:bg-[color-mix(in_srgb,var(--accent)_4%,transparent)] ${m.enabled ? "" : "opacity-45"}`}
+                    >
                       <button
-                        className={`mk-toggle${m.enabled ? " on" : ""}`}
+                        className={`flex-shrink-0 w-[34px] h-[19px] border-none rounded-full relative cursor-pointer transition-colors p-0 ${m.enabled ? "bg-[var(--accent)]" : "bg-[var(--border)]"}`}
                         onClick={() => toggle(m)}
                         title={m.enabled ? "Enabled — click to disable" : "Disabled — click to enable"}
                       >
-                        <span className="mk-toggle-knob" />
+                        <span
+                          className="absolute top-[2px] left-[2px] w-[15px] h-[15px] rounded-full bg-white transition-transform"
+                          style={{ transform: m.enabled ? "translateX(15px)" : "translateX(0)" }}
+                        />
                       </button>
 
-                      {/* info */}
-                      <div className="mk-info">
-                        <div className="mk-row-name">{m.name}</div>
-                        <div className="mk-row-match mono">
-                          <span className={`method m-${m.method || "GET"}`}>{m.method || "ANY"}</span>
-                          <span className="mk-url">{m.url_contains || "(any URL)"}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[13px] font-medium text-[var(--text)] whitespace-nowrap overflow-hidden text-ellipsis mb-[3px]">{m.name}</div>
+                        <div className="flex items-center gap-[6px] text-[11px] text-[var(--muted)] whitespace-nowrap overflow-hidden font-mono">
+                          <span className={`font-mono text-[11px] font-semibold px-[7px] py-[2px] rounded-[5px] inline-block min-w-[48px] text-center ${methodClass(m.method || "GET")}`}>{m.method || "ANY"}</span>
+                          <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[var(--faint)]">{m.url_contains || "(any URL)"}</span>
                         </div>
                       </div>
 
-                      {/* status */}
-                      <span className={`mk-status status s-${Math.floor(m.status_code / 100)}`}>
+                      <span className={`flex-shrink-0 font-mono text-xs font-semibold px-2 py-[2px] rounded-[6px] ${mkStatusClass(m.status_code)}`}>
                         {m.status_code}
                       </span>
 
-                      {/* hits */}
-                      <span className="mk-hits" title="Hit count">
+                      <span className="flex-shrink-0 text-[11px] text-[var(--faint)] font-mono w-7 text-right" title="Hit count">
                         {m.hits}×
                       </span>
 
-                      {/* actions */}
-                      <span className="mk-row-sep" />
-                      <div className="mk-actions">
-                        <button className="mk-act-btn" onClick={() => setEditing(m)} title="Edit">✏</button>
-                        <span className="mk-act-div" />
-                        <button className="mk-act-btn del" onClick={() => remove(m.id)} title="Delete">✕</button>
+                      <span className="w-px self-stretch bg-[var(--border)] flex-shrink-0 my-1" />
+                      <div className="flex-shrink-0 flex items-center bg-[var(--panel)] border border-[var(--border)] rounded-[7px] overflow-hidden">
+                        <button
+                          className="bg-none border-none cursor-pointer text-[var(--muted)] text-[13px] px-[9px] py-1 leading-none hover:text-[var(--accent)] hover:bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] transition-colors"
+                          onClick={() => setEditing(m)}
+                          title="Edit"
+                        >✏</button>
+                        <span className="w-px self-stretch bg-[var(--border)]" />
+                        <button
+                          className="bg-none border-none cursor-pointer text-[var(--muted)] text-[13px] px-[9px] py-1 leading-none hover:text-[var(--red)] hover:bg-[color-mix(in_srgb,var(--red)_10%,transparent)] transition-colors"
+                          onClick={() => remove(m.id)}
+                          title="Delete"
+                        >✕</button>
                       </div>
                     </div>
                   ))}
@@ -186,17 +225,30 @@ export default function MockModal({
               )}
             </div>
 
-            <div className="modal-footer">
-              <input ref={fileInputRef} type="file" accept=".json,application/json" style={{ display: "none" }} onChange={handleImport} />
-              <button className="btn" onClick={() => fileInputRef.current?.click()} disabled={importing} title="Import from JSON">
+            <div className="flex justify-end gap-[10px] px-5 py-[14px] border-t border-[var(--border)] bg-[var(--bg-2)] rounded-b-[14px] flex-shrink-0">
+              <input ref={fileInputRef} type="file" accept=".json,application/json" className="hidden" onChange={handleImport} />
+              <button
+                className="bg-[var(--panel-2)] text-[var(--text)] border border-[var(--border)] rounded-[7px] px-3 py-[6px] text-xs cursor-pointer hover:bg-[#232c3d] transition-colors disabled:opacity-50 disabled:cursor-default"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={importing}
+                title="Import from JSON"
+              >
                 ↑ Import
               </button>
-              <button className="btn" onClick={() => exportMocks(mocks)} disabled={mocks.length === 0} title="Export as JSON">
+              <button
+                className="bg-[var(--panel-2)] text-[var(--text)] border border-[var(--border)] rounded-[7px] px-3 py-[6px] text-xs cursor-pointer hover:bg-[#232c3d] transition-colors disabled:opacity-50 disabled:cursor-default"
+                onClick={() => exportMocks(mocks)}
+                disabled={mocks.length === 0}
+                title="Export as JSON"
+              >
                 ↓ Export
               </button>
-              {importMsg && <span className="import-msg">{importMsg}</span>}
-              <span style={{ flex: 1 }} />
-              <button className="btn primary" onClick={() => setEditing({ enabled: true, status_code: 200 })}>
+              {importMsg && <span className="text-xs text-[var(--green)] self-center">{importMsg}</span>}
+              <span className="flex-1" />
+              <button
+                className="bg-[var(--panel-2)] text-[var(--accent)] border border-[var(--accent)] rounded-[7px] px-3 py-[6px] text-xs cursor-pointer hover:bg-[#1c2740] transition-colors"
+                onClick={() => setEditing({ enabled: true, status_code: 200 })}
+              >
                 ＋ New mock rule
               </button>
             </div>
@@ -218,6 +270,11 @@ function MockEditor({ draft, onCancel, onSaved }: { draft: Partial<MockRule>; on
   const [bodyMsg, setBodyMsg] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  const inputCls = "w-full bg-[var(--panel)] border border-[var(--border)] rounded-[7px] px-[11px] py-[7px] text-[var(--text)] text-[13px] outline-none focus:border-[var(--accent)]";
+  const monoInputCls = `${inputCls} font-mono`;
+  const selectCls = `${inputCls} appearance-none`;
+  const textareaCls = `${monoInputCls} resize-y leading-[1.45]`;
+
   const formatBody = () => {
     const t = body.trim();
     if (!t) return;
@@ -235,59 +292,75 @@ function MockEditor({ draft, onCancel, onSaved }: { draft: Partial<MockRule>; on
 
   return (
     <>
-      <div className="modal-body">
-        {/* name + enabled */}
-        <div className="form-row">
-          <label style={{ flex: 1 }}>
-            <span className="field-label">Name</span>
-            <input className="search full" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. fake login OK" />
+      <div className="px-5 py-[18px] overflow-auto flex-1">
+        <div className="flex gap-3 items-end mb-3">
+          <label className="flex-1 block">
+            <span className="block text-[var(--muted)] text-[11px] uppercase tracking-[0.04em] mb-[6px]">Name</span>
+            <input className={inputCls} value={name} onChange={e => setName(e.target.value)} placeholder="e.g. fake login OK" />
           </label>
-          <label className="check-inline">
+          <label className="inline-flex items-center gap-[6px] text-[13px] text-[var(--text)] pb-2 whitespace-nowrap">
             <input type="checkbox" checked={enabled} onChange={e => setEnabled(e.target.checked)} />
             Enabled
           </label>
         </div>
 
-        <div className="mk-section">Match when…</div>
-        <div className="form-row">
-          <label style={{ flex: "0 0 120px" }}>
-            <span className="field-label">Method</span>
-            <select className="search full" value={method} onChange={e => setMethod(e.target.value)}>
+        <div className="text-[11px] uppercase tracking-[0.05em] text-[var(--faint)] mt-4 mb-2">Match when…</div>
+        <div className="flex gap-3 items-end mb-3">
+          <label style={{ flex: "0 0 120px" }} className="block">
+            <span className="block text-[var(--muted)] text-[11px] uppercase tracking-[0.04em] mb-[6px]">Method</span>
+            <select className={selectCls} value={method} onChange={e => setMethod(e.target.value)}>
               {METHODS.map(m => <option key={m} value={m}>{m || "ANY"}</option>)}
             </select>
           </label>
-          <label style={{ flex: 1 }}>
-            <span className="field-label">URL contains</span>
-            <input className="search full mono" value={urlContains} onChange={e => setUrlContains(e.target.value)} placeholder="api.example.com/users" />
+          <label className="flex-1 block">
+            <span className="block text-[var(--muted)] text-[11px] uppercase tracking-[0.04em] mb-[6px]">URL contains</span>
+            <input className={monoInputCls} value={urlContains} onChange={e => setUrlContains(e.target.value)} placeholder="api.example.com/users" />
           </label>
         </div>
 
-        <div className="mk-section">Respond with…</div>
-        <div className="form-row">
-          <label style={{ flex: "0 0 120px" }}>
-            <span className="field-label">Status code</span>
-            <input className="search full mono" value={status} onChange={e => setStatus(e.target.value)} inputMode="numeric" />
+        <div className="text-[11px] uppercase tracking-[0.05em] text-[var(--faint)] mt-4 mb-2">Respond with…</div>
+        <div className="flex gap-3 items-end mb-3">
+          <label style={{ flex: "0 0 120px" }} className="block">
+            <span className="block text-[var(--muted)] text-[11px] uppercase tracking-[0.04em] mb-[6px]">Status code</span>
+            <input className={monoInputCls} value={status} onChange={e => setStatus(e.target.value)} inputMode="numeric" />
           </label>
-          <label style={{ flex: 1 }}>
-            <span className="field-label">Headers (one per line: Key: Value)</span>
-            <textarea className="search full mono area" value={headers} onChange={e => setHeaders(e.target.value)} rows={2} />
+          <label className="flex-1 block">
+            <span className="block text-[var(--muted)] text-[11px] uppercase tracking-[0.04em] mb-[6px]">Headers (one per line: Key: Value)</span>
+            <textarea className={textareaCls} value={headers} onChange={e => setHeaders(e.target.value)} rows={2} />
           </label>
         </div>
-        <label>
-          <span className="field-label body-label">
+        <label className="block">
+          <span className="flex items-center justify-between text-[var(--muted)] text-[11px] uppercase tracking-[0.04em] mb-[6px]">
             Body
-            <span className="body-label-actions">
-              {bodyMsg && <span className="body-msg">{bodyMsg}</span>}
-              <button type="button" className="mini" onClick={formatBody}>Format JSON</button>
+            <span className="flex items-center gap-2">
+              {bodyMsg && <span className="normal-case tracking-normal text-[var(--amber)] text-[11px]">{bodyMsg}</span>}
+              <button
+                type="button"
+                className="bg-[var(--panel)] text-[var(--muted)] border border-[var(--border)] rounded-[6px] px-[9px] py-[3px] text-[11px] cursor-pointer hover:text-[var(--text)] hover:border-[var(--accent)] transition-colors normal-case tracking-normal"
+                onClick={formatBody}
+              >Format JSON</button>
             </span>
           </span>
-          <textarea className="search full mono area" value={body} onChange={e => { setBody(e.target.value); if (bodyMsg) setBodyMsg(null); }} rows={8} placeholder={'{\n  "ok": true\n}'} />
+          <textarea
+            className={textareaCls}
+            value={body}
+            onChange={e => { setBody(e.target.value); if (bodyMsg) setBodyMsg(null); }}
+            rows={8}
+            placeholder={'{\n  "ok": true\n}'}
+          />
         </label>
       </div>
 
-      <div className="modal-footer">
-        <button className="btn" onClick={onCancel}>Cancel</button>
-        <button className="btn primary" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save mock"}</button>
+      <div className="flex justify-end gap-[10px] px-5 py-[14px] border-t border-[var(--border)] bg-[var(--bg-2)] rounded-b-[14px] flex-shrink-0">
+        <button
+          className="bg-[var(--panel-2)] text-[var(--text)] border border-[var(--border)] rounded-[7px] px-3 py-[6px] text-xs cursor-pointer hover:bg-[#232c3d] transition-colors"
+          onClick={onCancel}
+        >Cancel</button>
+        <button
+          className="bg-[var(--panel-2)] text-[var(--accent)] border border-[var(--accent)] rounded-[7px] px-3 py-[6px] text-xs cursor-pointer hover:bg-[#1c2740] transition-colors disabled:opacity-50 disabled:cursor-default"
+          onClick={save}
+          disabled={saving}
+        >{saving ? "Saving…" : "Save mock"}</button>
       </div>
     </>
   );
