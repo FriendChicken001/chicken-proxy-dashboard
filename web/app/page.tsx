@@ -132,22 +132,38 @@ export default function Page() {
     setSelected(null);
   };
 
-  return (
-    <div className="app">
-      <header className="topbar">
+  const ledColor =
+    conn === "live" ? "bg-[var(--green)] shadow-[0_0_8px_var(--green)]" :
+    conn === "connecting" ? "bg-[var(--amber)]" :
+    conn === "offline" ? "bg-[var(--red)]" :
+    "bg-[var(--faint)]";
 
-        <div className={`topbar-status ${conn}`}>
-          <span className="led" />
-          <span className="topbar-status-label">
+  const statusBorderColor =
+    conn === "live" ? "border-[color-mix(in_srgb,var(--green)_30%,var(--border))]" :
+    conn === "offline" ? "border-[color-mix(in_srgb,var(--red)_30%,var(--border))]" :
+    "border-[var(--border)]";
+
+  const statusLabelColor =
+    conn === "live" ? "text-[var(--green)]" :
+    conn === "offline" ? "text-[var(--red)]" :
+    "text-[var(--muted)]";
+
+  return (
+    <div className="flex flex-col h-screen overflow-hidden">
+      <header className="flex items-center gap-4 px-5 py-3 border-b border-[var(--border)] bg-[var(--bg-2)]">
+
+        <div className={`inline-flex items-center gap-[7px] px-[14px] py-[5px] border rounded-full bg-[var(--panel)] text-xs text-[var(--muted)] whitespace-nowrap ${statusBorderColor}`}>
+          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${ledColor}`} />
+          <span className={statusLabelColor}>
             {conn === "live" ? "Live" : conn === "connecting" ? "Connecting…" : "Offline"}
           </span>
           {connection && (
             <>
-              <span className="topbar-status-divider" />
-              <span className="topbar-status-ip mono">{connection.lan_ip}</span>
-              <span className="topbar-status-colon">:</span>
+              <span className="w-px h-[14px] bg-[var(--border)] mx-[2px]" />
+              <span className="text-[var(--text)] text-xs font-mono">{connection.lan_ip}</span>
+              <span className="text-[var(--faint)]">:</span>
               <input
-                className={`topbar-port-input${portValid ? "" : " port-invalid"}`}
+                className={`bg-transparent border-none outline-none font-mono text-xs w-11 p-0 ${portValid ? "text-[var(--text)]" : "text-[var(--red)]"}`}
                 value={portInput}
                 onChange={(e) => setPortInput(e.target.value)}
                 inputMode="numeric"
@@ -158,22 +174,32 @@ export default function Page() {
           )}
         </div>
 
-        <div className="spacer" />
-        <button className="btn" onClick={() => openMocks(null)}>
+        <div className="flex-1" />
+        <button
+          className="bg-[var(--panel-2)] text-[var(--text)] border border-[var(--border)] rounded-[7px] px-3 py-[6px] text-xs cursor-pointer hover:bg-[#232c3d] transition-colors"
+          onClick={() => openMocks(null)}
+        >
           🐔 Mocks{mocks.length ? ` (${mocks.length})` : ""}
         </button>
-        <button className="btn primary" onClick={() => setShowConnect(true)}>
+        <button
+          className="bg-[var(--panel-2)] text-[var(--accent)] border border-[var(--accent)] rounded-[7px] px-3 py-[6px] text-xs cursor-pointer hover:bg-[#1c2740] transition-colors"
+          onClick={() => setShowConnect(true)}
+        >
           📱 Connect devices
         </button>
         <button
-          className={`icon-btn${paused ? " icon-btn-amber" : ""}`}
+          className={`inline-flex items-center justify-center w-8 h-8 rounded-lg p-0 border text-base leading-none cursor-pointer transition-colors ${
+            paused
+              ? "bg-[var(--panel)] border-[color-mix(in_srgb,var(--amber)_40%,var(--border))] text-[var(--amber)] hover:bg-[color-mix(in_srgb,var(--amber)_10%,transparent)] hover:border-[var(--amber)]"
+              : "bg-[var(--panel)] border-[var(--border)] text-[var(--muted)] hover:bg-[var(--panel-2)] hover:text-[var(--text)] hover:border-[var(--accent)]"
+          }`}
           onClick={() => setPaused(!paused)}
           title={paused ? "Resume capture" : "Pause capture"}
         >
           {paused ? "▶" : "⏸"}
         </button>
         <button
-          className="icon-btn"
+          className="inline-flex items-center justify-center w-8 h-8 rounded-lg p-0 bg-[var(--panel)] border border-[var(--border)] text-[var(--muted)] text-base leading-none cursor-pointer hover:bg-[var(--panel-2)] hover:text-[var(--text)] hover:border-[var(--accent)] transition-colors"
           onClick={() => reload()}
           title="Refresh"
         >
@@ -188,25 +214,29 @@ export default function Page() {
         onHighlight={setHighlightedHost}
       />
 
-      <div className="toolbar">
+      <div className="flex items-center gap-[10px] px-5 pb-3 pt-[6px]">
         <input
-          className="search"
+          className="flex-1 max-w-[420px] bg-[var(--panel)] border border-[var(--border)] rounded-[7px] px-[11px] py-[7px] text-[var(--text)] text-[13px] outline-none focus:border-[var(--accent)]"
           placeholder="Filter by host, path, or method…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
         <button
-          className={`body-btn${bodySearch ? ' on' : ''}`}
+          className={`inline-flex items-center gap-[5px] px-[11px] py-[7px] rounded-[7px] text-[13px] cursor-pointer border whitespace-nowrap transition-colors ${
+            bodySearch
+              ? "text-[var(--accent)] border-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)]"
+              : "bg-[var(--panel)] border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)] hover:border-[var(--accent)]"
+          }`}
           onClick={() => setBodySearch(v => !v)}
           title="Search in request/response bodies"
         >
-          {bodyFetching ? <span className="body-btn-spinner">↻</span> : null}
+          {bodyFetching ? <span className="inline-block text-[11px]" style={{ animation: "spin .7s linear infinite" }}>↻</span> : null}
           Body
         </button>
 
-        <div className="toolbar-divider" />
+        <div className="w-px h-5 bg-[var(--border)] flex-shrink-0" />
 
-        <div className="filters">
+        <div className="flex gap-[6px]">
           {(
             [
               ["all", "All"],
@@ -218,23 +248,26 @@ export default function Page() {
           ).map(([key, label]) => (
             <span
               key={key}
-              className={`chip ${filter === key ? "on" : ""}`}
+              className={`text-[11px] px-[10px] py-[5px] rounded-full cursor-pointer border ${
+                filter === key
+                  ? "text-[var(--text)] border-[var(--accent)] bg-[var(--panel-2)]"
+                  : "border-[var(--border)] bg-[var(--panel)] text-[var(--muted)]"
+              }`}
               onClick={() => setFilter(key)}
             >
               {label}
             </span>
           ))}
         </div>
-        <div className="spacer" />
-        <span className="count-note">
+        <div className="flex-1" />
+        <span className="text-[var(--faint)] text-xs">
           {visible.length} / {flows.length} flows
           {paused ? " · paused" : ""}
         </span>
         <button
-          className="ctrl-btn danger"
+          className="inline-flex items-center gap-[5px] bg-[var(--panel)] border border-[var(--border)] text-[var(--muted)] text-xs cursor-pointer px-[10px] py-[5px] rounded-[7px] whitespace-nowrap hover:text-[var(--red)] transition-colors"
           onClick={onClear}
           title="Clear all flows"
-          style={{ borderRadius: 7, border: "1px solid var(--border)", background: "var(--panel)" }}
         >
           🗑 Clear
         </button>
