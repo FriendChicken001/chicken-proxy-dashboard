@@ -28,6 +28,8 @@ export interface MockRule {
   status_code: number;
   headers: [string, string][];
   body: string;
+  delay_ms: number;
+  func: string; // Python function body; non-empty = dynamic mode
   hits: number;
 }
 

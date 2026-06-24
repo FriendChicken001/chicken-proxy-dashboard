@@ -80,6 +80,8 @@ def _normalize_mock(data: Dict[str, Any], existing_hits: int = 0) -> Dict[str, A
         "status_code": int(data.get("status_code") or 200),
         "headers": headers,
         "body": str(data.get("body") or ""),
+        "delay_ms": max(0, int(data.get("delay_ms") or 0)),
+        "func": str(data.get("func") or ""),
         "hits": int(existing_hits),
     }
 
@@ -99,6 +101,34 @@ def _mock_matches(rule: Dict[str, Any], flow: http.HTTPFlow) -> bool:
 
 
 def _apply_mock(rule: Dict[str, Any], flow: http.HTTPFlow) -> None:
+    delay_ms = rule.get("delay_ms", 0) or 0
+    if delay_ms > 0:
+        time.sleep(delay_ms / 1000.0)
+
+    func_code = (rule.get("func") or "").strip()
+    if func_code:
+        try:
+            ns: Dict[str, Any] = {}
+            exec(compile(func_code, "<mock_func>", "exec"), ns)  # noqa: S102
+            if "mock" in ns:
+                result = ns["mock"](flow)
+                if isinstance(result, tuple) and len(result) == 3:
+                    status, hdrs, body = result
+                elif isinstance(result, dict):
+                    status = result.get("status", 200)
+                    hdrs = result.get("headers", {})
+                    body = result.get("body", "")
+                else:
+                    status, hdrs, body = 200, {}, str(result)
+                if isinstance(body, str):
+                    body = body.encode("utf-8")
+                if isinstance(hdrs, list):
+                    hdrs = {str(k): str(v) for k, v in hdrs}
+                flow.response = http.Response.make(int(status), body, hdrs)
+                return
+        except Exception as exc:
+            log.warning(f"[dashboard] mock func error: {exc}")
+
     headers = {str(k): str(v) for k, v in rule.get("headers", [])}
     body = (rule.get("body") or "").encode("utf-8")
     flow.response = http.Response.make(

@@ -201,6 +201,17 @@ export default function MockModal({
                         {m.status_code}
                       </span>
 
+                      {(m.delay_ms ?? 0) > 0 && (
+                        <span className="flex-shrink-0 font-mono text-[11px] px-[7px] py-[2px] rounded-[6px] bg-[color-mix(in_srgb,var(--amber)_12%,transparent)] text-[var(--amber)]" title="Response delay">
+                          ⏱{m.delay_ms}ms
+                        </span>
+                      )}
+                      {m.func && (
+                        <span className="flex-shrink-0 font-mono text-[11px] px-[7px] py-[2px] rounded-[6px] bg-[color-mix(in_srgb,var(--purple)_14%,transparent)] text-[var(--purple)]" title="Dynamic Python function">
+                          fn
+                        </span>
+                      )}
+
                       <span className="flex-shrink-0 text-[11px] text-[var(--faint)] font-mono w-7 text-right" title="Hit count">
                         {m.hits}×
                       </span>
@@ -259,6 +270,14 @@ export default function MockModal({
   );
 }
 
+const DEFAULT_FUNC = `def mock(flow):
+    import json
+    # flow.request.path, .method, .headers, .query, .text available
+    return 200, {"content-type": "application/json"}, json.dumps({
+        "ok": True
+    })
+`;
+
 function MockEditor({ draft, onCancel, onSaved }: { draft: Partial<MockRule>; onCancel: () => void; onSaved: () => void }) {
   const [name, setName] = useState(draft.name ?? "");
   const [enabled, setEnabled] = useState(draft.enabled ?? true);
@@ -268,6 +287,9 @@ function MockEditor({ draft, onCancel, onSaved }: { draft: Partial<MockRule>; on
   const [headers, setHeaders] = useState(headersToText(draft.headers ?? [["content-type", "application/json"]]));
   const [body, setBody] = useState(prettyIfJson(draft.body ?? ""));
   const [bodyMsg, setBodyMsg] = useState<string | null>(null);
+  const [delayMs, setDelayMs] = useState(String(draft.delay_ms ?? 0));
+  const [funcMode, setFuncMode] = useState(!!(draft.func));
+  const [funcCode, setFuncCode] = useState(draft.func || DEFAULT_FUNC);
   const [saving, setSaving] = useState(false);
 
   const inputCls = "w-full bg-[var(--panel)] border border-[var(--border)] rounded-[7px] px-[11px] py-[7px] text-[var(--text)] text-[13px] outline-none focus:border-[var(--accent)]";
@@ -285,7 +307,13 @@ function MockEditor({ draft, onCancel, onSaved }: { draft: Partial<MockRule>; on
   const save = async () => {
     setSaving(true);
     try {
-      await saveMock({ id: draft.id, name: name || "Mock", enabled, method, url_contains: urlContains, status_code: parseInt(status, 10) || 200, headers: textToHeaders(headers), body });
+      await saveMock({
+        id: draft.id, name: name || "Mock", enabled, method,
+        url_contains: urlContains, status_code: parseInt(status, 10) || 200,
+        headers: textToHeaders(headers), body,
+        delay_ms: Math.max(0, parseInt(delayMs, 10) || 0),
+        func: funcMode ? funcCode : "",
+      });
       onSaved();
     } catch { setSaving(false); }
   };
@@ -318,37 +346,82 @@ function MockEditor({ draft, onCancel, onSaved }: { draft: Partial<MockRule>; on
           </label>
         </div>
 
-        <div className="text-[11px] uppercase tracking-[0.05em] text-[var(--faint)] mt-4 mb-2">Respond with…</div>
-        <div className="flex gap-3 items-end mb-3">
-          <label style={{ flex: "0 0 120px" }} className="block">
-            <span className="block text-[var(--muted)] text-[11px] uppercase tracking-[0.04em] mb-[6px]">Status code</span>
-            <input className={monoInputCls} value={status} onChange={e => setStatus(e.target.value)} inputMode="numeric" />
+        <div className="flex items-center justify-between mt-4 mb-2">
+          <div className="text-[11px] uppercase tracking-[0.05em] text-[var(--faint)]">Respond with…</div>
+          <div className="flex items-center gap-[2px] bg-[var(--panel)] border border-[var(--border)] rounded-[7px] p-[2px]">
+            <button
+              type="button"
+              onClick={() => setFuncMode(false)}
+              className={`px-[10px] py-[3px] text-[11px] rounded-[5px] border-none cursor-pointer transition-colors ${!funcMode ? "bg-[var(--bg-2)] text-[var(--text)] font-medium" : "bg-transparent text-[var(--muted)] hover:text-[var(--text)]"}`}
+            >Static</button>
+            <button
+              type="button"
+              onClick={() => setFuncMode(true)}
+              className={`px-[10px] py-[3px] text-[11px] rounded-[5px] border-none cursor-pointer transition-colors ${funcMode ? "bg-[var(--bg-2)] text-[var(--purple)] font-medium" : "bg-transparent text-[var(--muted)] hover:text-[var(--text)]"}`}
+            >Dynamic (Python)</button>
+          </div>
+        </div>
+
+        {funcMode ? (
+          <label className="block">
+            <span className="block text-[var(--muted)] text-[11px] uppercase tracking-[0.04em] mb-[6px]">
+              Python — define <code className="font-mono normal-case tracking-normal text-[var(--purple)]">mock(flow)</code> → (status, headers_dict, body_str)
+            </span>
+            <textarea
+              className={textareaCls}
+              value={funcCode}
+              onChange={e => setFuncCode(e.target.value)}
+              rows={10}
+              spellCheck={false}
+            />
           </label>
-          <label className="flex-1 block">
-            <span className="block text-[var(--muted)] text-[11px] uppercase tracking-[0.04em] mb-[6px]">Headers (one per line: Key: Value)</span>
-            <textarea className={textareaCls} value={headers} onChange={e => setHeaders(e.target.value)} rows={2} />
+        ) : (
+          <>
+            <div className="flex gap-3 items-end mb-3">
+              <label style={{ flex: "0 0 120px" }} className="block">
+                <span className="block text-[var(--muted)] text-[11px] uppercase tracking-[0.04em] mb-[6px]">Status code</span>
+                <input className={monoInputCls} value={status} onChange={e => setStatus(e.target.value)} inputMode="numeric" />
+              </label>
+              <label className="flex-1 block">
+                <span className="block text-[var(--muted)] text-[11px] uppercase tracking-[0.04em] mb-[6px]">Headers (one per line: Key: Value)</span>
+                <textarea className={textareaCls} value={headers} onChange={e => setHeaders(e.target.value)} rows={2} />
+              </label>
+            </div>
+            <label className="block">
+              <span className="flex items-center justify-between text-[var(--muted)] text-[11px] uppercase tracking-[0.04em] mb-[6px]">
+                Body
+                <span className="flex items-center gap-2">
+                  {bodyMsg && <span className="normal-case tracking-normal text-[var(--amber)] text-[11px]">{bodyMsg}</span>}
+                  <button
+                    type="button"
+                    className="bg-[var(--panel)] text-[var(--muted)] border border-[var(--border)] rounded-[6px] px-[9px] py-[3px] text-[11px] cursor-pointer hover:text-[var(--text)] hover:border-[var(--accent)] transition-colors normal-case tracking-normal"
+                    onClick={formatBody}
+                  >Format JSON</button>
+                </span>
+              </span>
+              <textarea
+                className={textareaCls}
+                value={body}
+                onChange={e => { setBody(e.target.value); if (bodyMsg) setBodyMsg(null); }}
+                rows={8}
+                placeholder={'{\n  "ok": true\n}'}
+              />
+            </label>
+          </>
+        )}
+
+        <div className="mt-4">
+          <label style={{ width: 160 }} className="block">
+            <span className="block text-[var(--muted)] text-[11px] uppercase tracking-[0.04em] mb-[6px]">Delay (ms)</span>
+            <input
+              className={monoInputCls}
+              value={delayMs}
+              onChange={e => setDelayMs(e.target.value)}
+              inputMode="numeric"
+              placeholder="0"
+            />
           </label>
         </div>
-        <label className="block">
-          <span className="flex items-center justify-between text-[var(--muted)] text-[11px] uppercase tracking-[0.04em] mb-[6px]">
-            Body
-            <span className="flex items-center gap-2">
-              {bodyMsg && <span className="normal-case tracking-normal text-[var(--amber)] text-[11px]">{bodyMsg}</span>}
-              <button
-                type="button"
-                className="bg-[var(--panel)] text-[var(--muted)] border border-[var(--border)] rounded-[6px] px-[9px] py-[3px] text-[11px] cursor-pointer hover:text-[var(--text)] hover:border-[var(--accent)] transition-colors normal-case tracking-normal"
-                onClick={formatBody}
-              >Format JSON</button>
-            </span>
-          </span>
-          <textarea
-            className={textareaCls}
-            value={body}
-            onChange={e => { setBody(e.target.value); if (bodyMsg) setBodyMsg(null); }}
-            rows={8}
-            placeholder={'{\n  "ok": true\n}'}
-          />
-        </label>
       </div>
 
       <div className="flex justify-end gap-[10px] px-5 py-[14px] border-t border-[var(--border)] bg-[var(--bg-2)] rounded-b-[14px] flex-shrink-0">
