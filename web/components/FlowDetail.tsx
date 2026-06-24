@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { abortFlow, editResumeFlow, fetchFlowDetail, resumeFlow } from "@/lib/api";
+import { abortFlow, editResumeFlow, fetchFlowDetail, resendFlow, resumeFlow } from "@/lib/api";
 import type { BreakpointRule, FlowDetail, MessageBody, MockRule } from "@/lib/types";
 import { bytes, clockTime, ms, statusClass } from "@/lib/format";
 import { draftFromDetail } from "@/lib/mockDraft";
@@ -59,6 +59,11 @@ export default function FlowDetailDrawer({
   const [editHeaders, setEditHeaders] = useState("");
   const [editBody, setEditBody] = useState("");
   const [editStatus, setEditStatus] = useState("");
+  const [resendMode, setResendMode] = useState(false);
+  const [rsMethod, setRsMethod] = useState("");
+  const [rsUrl, setRsUrl] = useState("");
+  const [rsHeaders, setRsHeaders] = useState("");
+  const [rsBody, setRsBody] = useState("");
 
   useEffect(() => {
     setDetail(null);
@@ -67,6 +72,7 @@ export default function FlowDetailDrawer({
     setResendState('idle');
     setBpState('idle');
     setEditMode(false);
+    setResendMode(false);
     fetchFlowDetail(flowId)
       .then(setDetail)
       .catch((e) => setErr(String(e)));
@@ -141,21 +147,50 @@ export default function FlowDetailDrawer({
     finally { setBpState('idle'); }
   };
 
+  const skip = new Set(["host", "content-length", "transfer-encoding", "connection"]);
+
+  const openResendEdit = (d: typeof detail) => {
+    if (!d) return;
+    setRsMethod(d.method);
+    setRsUrl(d.url);
+    setRsHeaders(hdrsToText(d.request_headers.filter(([k]) => !skip.has(k.toLowerCase()))));
+    setRsBody(tryFormatJson(d.request_body?.text ?? ""));
+    setResendMode(true);
+  };
+
   const resend = async () => {
     if (!detail) return;
     setResendState('sending');
     try {
       const headers: Record<string, string> = {};
       for (const [k, v] of detail.request_headers) {
-        if (['host', 'content-length', 'transfer-encoding', 'connection'].includes(k.toLowerCase())) continue;
+        if (skip.has(k.toLowerCase())) continue;
         headers[k] = v;
       }
-      const res = await fetch(detail.url, {
+      const result = await resendFlow(flowId, {
         method: detail.method,
+        url: detail.url,
         headers,
-        body: detail.request_body?.size > 0 && detail.request_body?.text ? detail.request_body.text : undefined,
+        body: detail.request_body?.text ?? "",
       });
-      setResendState({ status: res.status });
+      setResendState({ status: result.status });
+    } catch {
+      setResendState('error');
+    }
+  };
+
+  const doResend = async () => {
+    if (!detail) return;
+    setResendState('sending');
+    setResendMode(false);
+    try {
+      const result = await resendFlow(flowId, {
+        method: rsMethod,
+        url: rsUrl,
+        headers: textToHdrs(rsHeaders),
+        body: rsBody,
+      });
+      setResendState({ status: result.status });
     } catch {
       setResendState('error');
     }
@@ -235,6 +270,11 @@ export default function FlowDetailDrawer({
                   onClick={resend}
                   disabled={resendState === 'sending'}
                 >{resendState === 'sending' ? '↺ Sending…' : '↺ Resend'}</button>
+                <button
+                  className={`border rounded-[7px] px-3 py-[6px] text-xs cursor-pointer transition-colors ${resendMode ? "bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] text-[var(--accent)] border-[var(--accent)]" : "bg-[var(--panel-2)] text-[var(--muted)] border-[var(--border)] hover:text-[var(--text)]"}`}
+                  onClick={() => resendMode ? setResendMode(false) : openResendEdit(detail)}
+                  disabled={resendState === 'sending'}
+                >✏ {resendMode ? "Cancel" : "Edit & Resend"}</button>
                 {resendState !== 'idle' && resendState !== 'sending' && (
                   <span style={{ fontSize: 12, color: typeof resendState === 'object' && resendState.status < 400 ? 'var(--green)' : 'var(--red)' }}>
                     {resendState === 'error' ? 'Network error' : `→ ${(resendState as { status: number }).status}`}
@@ -248,7 +288,64 @@ export default function FlowDetailDrawer({
         </div>
 
         {detail && (
-          editMode ? (
+          resendMode ? (
+            <>
+              <div className="flex-1 overflow-auto px-[18px] py-5 flex flex-col gap-4">
+                <div className="text-[11px] uppercase tracking-[0.05em] text-[var(--accent)] font-semibold">
+                  Edit request before resend
+                </div>
+                <div className="flex gap-3">
+                  <label style={{ flex: "0 0 130px" }} className="block">
+                    <span className={labelCls}>Method</span>
+                    <select className={inputCls} value={rsMethod} onChange={e => setRsMethod(e.target.value)}>
+                      {["GET","POST","PUT","PATCH","DELETE","HEAD","OPTIONS"].map(m => <option key={m}>{m}</option>)}
+                    </select>
+                  </label>
+                  <label className="flex-1 block">
+                    <span className={labelCls}>URL</span>
+                    <input className={inputCls} value={rsUrl} onChange={e => setRsUrl(e.target.value)} spellCheck={false} />
+                  </label>
+                </div>
+                <label className="block">
+                  <span className={labelCls}>Headers <span className="normal-case tracking-normal text-[var(--faint)] font-normal">one per line: Key: Value</span></span>
+                  <textarea
+                    className={`${inputCls} resize-y leading-[1.45]`}
+                    rows={4}
+                    value={rsHeaders}
+                    onChange={e => setRsHeaders(e.target.value)}
+                    spellCheck={false}
+                  />
+                </label>
+                <label className="block">
+                  <span className="flex items-center justify-between mb-[6px]">
+                    <span className={labelCls.replace("mb-[6px]", "")}>Body</span>
+                    <button
+                      type="button"
+                      className="bg-[var(--panel)] text-[var(--muted)] border border-[var(--border)] rounded-[6px] px-[9px] py-[3px] text-[11px] cursor-pointer hover:text-[var(--text)] hover:border-[var(--accent)] transition-colors"
+                      onClick={() => setRsBody(prev => tryFormatJson(prev))}
+                    >Format JSON</button>
+                  </span>
+                  <textarea
+                    className={`${inputCls} resize-y leading-[1.45]`}
+                    rows={8}
+                    value={rsBody}
+                    onChange={e => setRsBody(e.target.value)}
+                    spellCheck={false}
+                  />
+                </label>
+              </div>
+              <div className="flex justify-end gap-3 px-[18px] py-[14px] border-t border-[var(--border)] flex-shrink-0 bg-[var(--bg-2)]">
+                <button
+                  className="bg-[var(--panel-2)] text-[var(--text)] border border-[var(--border)] rounded-[7px] px-4 py-[7px] text-xs cursor-pointer hover:bg-[#232c3d] transition-colors"
+                  onClick={() => setResendMode(false)}
+                >Cancel</button>
+                <button
+                  className="bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] text-[var(--accent)] border border-[var(--accent)] rounded-[7px] px-4 py-[7px] text-xs cursor-pointer hover:bg-[color-mix(in_srgb,var(--accent)_18%,transparent)] transition-colors"
+                  onClick={doResend}
+                >↺ Send</button>
+              </div>
+            </>
+          ) : editMode ? (
             <>
               <div className="flex-1 overflow-auto px-[18px] py-5 flex flex-col gap-4">
                 <div className="text-[11px] uppercase tracking-[0.05em] text-[var(--amber)] font-semibold">

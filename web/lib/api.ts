@@ -102,6 +102,19 @@ export async function deleteBreakpoint(id: string): Promise<void> {
   await fetch(`${API_BASE}/api/breakpoints/${id}`, { method: "DELETE" });
 }
 
+export async function resendFlow(
+  id: string,
+  edits: { method: string; url: string; headers: Record<string, string>; body: string }
+): Promise<{ status: number }> {
+  const res = await fetch(`${API_BASE}/api/flows/${id}/resend`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(edits),
+  });
+  if (!res.ok) throw new Error(`resend: ${res.status}`);
+  return res.json();
+}
+
 export async function resumeFlow(id: string): Promise<void> {
   await fetch(`${API_BASE}/api/flows/${id}/resume`, { method: "POST" });
 }

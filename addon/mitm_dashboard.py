@@ -41,10 +41,14 @@ import json
 import logging
 import os
 import socket
+import ssl
 import time
+import urllib.error
+import urllib.request
 from collections import deque
 from typing import Any, Deque, Dict, List, Optional, Set
 
+import tornado.ioloop
 import tornado.web
 import tornado.websocket
 
@@ -538,6 +542,64 @@ class EditResumeFlowHandler(_CorsHandler):
         self.finish(json.dumps({"ok": True}))
 
 
+class ResendFlowHandler(_CorsHandler):
+    async def post(self, flow_id: str) -> None:
+        flow = None
+        for f in self.store.flows:
+            if f.id == flow_id:
+                flow = f
+                break
+        if flow is None:
+            self.set_status(404)
+            self.finish(json.dumps({"error": "not found"}))
+            return
+        try:
+            data = json.loads(self.request.body or b"{}")
+        except Exception:
+            self.set_status(400)
+            self.finish(json.dumps({"error": "invalid JSON"}))
+            return
+
+        method = str(data.get("method") or flow.request.method).upper()
+        url = str(data.get("url") or flow.request.pretty_url)
+        user_headers: Optional[Dict[str, str]] = data.get("headers")
+        body_text = str(data.get("body") or "")
+
+        skip = {"host", "content-length", "transfer-encoding", "connection", "proxy-connection"}
+        if user_headers is not None:
+            headers = {k: v for k, v in user_headers.items() if k.lower() not in skip}
+        else:
+            headers = {k: v for k, v in flow.request.headers.items() if k.lower() not in skip}
+
+        proxy_port = _proxy_port()
+
+        def do_request() -> int:
+            ssl_ctx = ssl.create_default_context()
+            ssl_ctx.check_hostname = False
+            ssl_ctx.verify_mode = ssl.CERT_NONE
+            proxy_url = f"http://127.0.0.1:{proxy_port}"
+            opener = urllib.request.build_opener(
+                urllib.request.ProxyHandler({"http": proxy_url, "https": proxy_url}),
+                urllib.request.HTTPSHandler(context=ssl_ctx),
+            )
+            req = urllib.request.Request(
+                url,
+                method=method,
+                headers=headers,
+                data=body_text.encode("utf-8") if body_text else None,
+            )
+            try:
+                resp = opener.open(req, timeout=30)
+                return resp.status  # type: ignore[attr-defined]
+            except urllib.error.HTTPError as e:
+                return e.code
+            except Exception:
+                return 0
+
+        status = await tornado.ioloop.IOLoop.current().run_in_executor(None, do_request)
+        self.finish(json.dumps({"status": status}))
+
+
 class FlowSocket(tornado.websocket.WebSocketHandler):
     def check_origin(self, origin: str) -> bool:
         return True
@@ -613,6 +675,7 @@ class DashboardAddon:
                 (r"/api/flows/([^/]+)/resume", ResumeFlowHandler),
                 (r"/api/flows/([^/]+)/abort", AbortFlowHandler),
                 (r"/api/flows/([^/]+)/edit-resume", EditResumeFlowHandler),
+                (r"/api/flows/([^/]+)/resend", ResendFlowHandler),
                 (r"/cert", CertHandler),
                 (r"/ws", FlowSocket),
             ],

@@ -3,7 +3,8 @@
 A live web dashboard for [mitmproxy](https://mitmproxy.org). A mitmproxy **addon**
 captures every intercepted flow and serves it over HTTP + WebSocket. A
 **Next.js** app renders it as a real-time dashboard with a request/response log,
-traffic charts, full request inspection, and response mocking.
+traffic charts, full request inspection, response mocking, and breakpoint
+interception.
 
 ```
  client ──► mitmproxy ──► internet
@@ -17,9 +18,11 @@ traffic charts, full request inspection, and response mocking.
 
 - **Live log** – every request/response streamed over WebSocket as it happens.
 - **Inspect** – click any flow for full request/response headers, query params, and (text) bodies.
-- **Resend** – replay any captured request directly from the detail drawer.
+- **Resend** – replay any captured request from the detail drawer, or use **Edit & Resend** to modify the method, URL, headers, and body before sending.
+- **Breakpoints** – pause matching requests mid-flight to inspect, edit, resume, or abort them live.
 - **Stats & charts** – requests/sec, top hosts with one-click traffic filter.
-- **Mock** – right-click any flow → return a canned response for matching requests; mocked flows are tagged 🎭 in the log.
+- **Mock** – right-click any flow → return a canned response for matching requests; mocked flows are tagged 🎭 in the log. Rules are ordered and reorderable.
+- **Groups** – organise mock rules into named groups.
 - **Diff** – compare two response bodies side-by-side with LCS line diffing.
 - **Pin** – pin flows to keep them at the top of the log.
 - **Body search** – search across all captured request/response bodies.
@@ -41,8 +44,8 @@ traffic charts, full request inspection, and response mocking.
 
 ```bash
 # 1. Clone the repo
-git clone https://github.com/your-org/mitmproxy-dashboard.git
-cd mitmproxy-dashboard
+git clone https://github.com/your-org/chicken-proxy-dashboard.git
+cd chicken-proxy-dashboard
 
 # 2. Install dashboard dependencies
 cd web && npm install && cd ..
@@ -144,10 +147,18 @@ void main() {
 ## Mocking responses
 
 - **Right-click** any captured request → **🎭 Mock this response** — creates a rule pre-filled from that flow.
-- Open **🎭 Mocks** in the header to add, edit, enable/disable, or delete rules.
+- Open **🎭 Mocks** in the header to add, edit, enable/disable, reorder, or delete rules.
 - A rule matches on **method** (or ANY) **+ a "URL contains" substring**. The first enabled match wins.
 - Matched flows are tagged 🎭 and hit counts update live.
 - Rules are saved to `addon/mocks.json` and survive proxy restarts.
+
+---
+
+## Breakpoints
+
+- Open **⏸ Breakpoints** in the header to define intercept rules by method and URL pattern.
+- When a matching request is in-flight it appears in the flow list as **intercepted** — open it to inspect headers and body.
+- From the detail drawer you can **Resume** (let the request through), **Edit & Resume** (modify it first), or **Abort** (kill it).
 
 ---
 
@@ -157,12 +168,24 @@ void main() {
 |----------|--------|-------------|
 | `/api/flows` | GET | Flow summaries, newest first |
 | `/api/flows/:id` | GET | Full flow detail — headers + body |
-| `/api/flows/clear` | POST | Drop the in-memory buffer |
+| `/api/clear` | POST | Drop the in-memory buffer |
+| `/api/stats` | GET | Request rate and top hosts |
 | `/api/connection` | GET | Host LAN IP, proxy port, emulator hosts |
 | `/api/mocks` | GET | All mock rules |
 | `/api/mocks` | POST | Create or update a mock rule |
+| `/api/mocks/reorder` | POST | Reorder mock rules |
 | `/api/mocks/:id` | DELETE | Delete a mock rule |
-| `/api/resend/:id` | POST | Replay a captured request |
+| `/api/groups` | GET | All mock groups |
+| `/api/groups` | POST | Create or update a group |
+| `/api/groups/:id` | DELETE | Delete a group |
+| `/api/breakpoints` | GET | All breakpoint rules |
+| `/api/breakpoints` | POST | Create or update a breakpoint rule |
+| `/api/breakpoints/:id` | DELETE | Delete a breakpoint rule |
+| `/api/flows/:id/resend` | POST | Replay a captured request (with optional edits) |
+| `/api/flows/:id/resume` | POST | Resume an intercepted (breakpointed) flow |
+| `/api/flows/:id/abort` | POST | Abort an intercepted flow |
+| `/api/flows/:id/edit-resume` | POST | Modify and resume an intercepted flow |
+| `/cert` | GET | Download the mitmproxy CA certificate |
 | `/ws` | WebSocket | Live push of new/updated flows + stats |
 
 ---
