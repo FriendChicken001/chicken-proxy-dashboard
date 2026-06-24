@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { deleteMock, saveMock } from "@/lib/api";
-import type { MockRule } from "@/lib/types";
+import { deleteGroup, deleteMock, reorderMocks, saveGroup, saveMock } from "@/lib/api";
+import type { MockGroup, MockRule } from "@/lib/types";
 
 function exportMocks(mocks: MockRule[]) {
   const blob = new Blob([JSON.stringify(mocks, null, 2)], { type: "application/json" });
@@ -69,10 +69,181 @@ function mkStatusClass(code: number): string {
   return "bg-[color-mix(in_srgb,var(--muted)_12%,transparent)] text-[var(--muted)]";
 }
 
+// ---------- drag-and-drop helpers ----------
+
+type DropTarget = { groupId: string | null; beforeRuleId: string | null };
+
+function computeReorder(
+  allRules: MockRule[],
+  allGroups: MockGroup[],
+  draggedId: string,
+  targetGroupId: string | null,
+  beforeRuleId: string | null
+): Array<{ id: string; group_id: string | null; order: number }> {
+  const validGroupIds = new Set(allGroups.map(g => g.id));
+
+  // Build buckets keyed by group_id (null = ungrouped)
+  const buckets = new Map<string | null, MockRule[]>();
+  buckets.set(null, []);
+  for (const g of allGroups) buckets.set(g.id, []);
+
+  for (const rule of allRules) {
+    const gid = rule.group_id && validGroupIds.has(rule.group_id) ? rule.group_id : null;
+    buckets.get(gid)!.push(rule);
+  }
+
+  // Sort each bucket by order
+  for (const [gid, rules] of buckets) {
+    buckets.set(gid, [...rules].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)));
+  }
+
+  // Remove dragged rule from its current bucket
+  for (const [gid, rules] of buckets) {
+    const idx = rules.findIndex(r => r.id === draggedId);
+    if (idx !== -1) { rules.splice(idx, 1); buckets.set(gid, rules); break; }
+  }
+
+  // Insert dragged rule into target bucket
+  const draggedRule = allRules.find(r => r.id === draggedId)!;
+  const targetBucket = buckets.get(targetGroupId) ?? buckets.get(null)!;
+  const insertIdx = beforeRuleId
+    ? Math.max(0, targetBucket.findIndex(r => r.id === beforeRuleId))
+    : targetBucket.length;
+  targetBucket.splice(insertIdx === -1 ? targetBucket.length : insertIdx, 0, draggedRule);
+  buckets.set(targetGroupId, targetBucket);
+
+  // Build result with new order values
+  const result: Array<{ id: string; group_id: string | null; order: number }> = [];
+  for (const [gid, rules] of buckets) {
+    rules.forEach((r, i) => result.push({ id: r.id, group_id: gid, order: i }));
+  }
+  return result;
+}
+
+// ---------- sub-components ----------
+
+function DropLine({
+  isActive,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+}: {
+  isActive: boolean;
+  onDragOver: (e: React.DragEvent) => void;
+  onDragLeave: () => void;
+  onDrop: (e: React.DragEvent) => void;
+}) {
+  return (
+    <div
+      style={{ height: isActive ? 3 : 2, margin: "0 0", transition: "height 0.1s, background 0.1s" }}
+      className={isActive ? "bg-[var(--accent)]" : "bg-transparent"}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+    />
+  );
+}
+
+function RuleRow({
+  rule, isDragging, indent,
+  onDragStart, onDragEnd, onDragOverHalf,
+  onToggle, onEdit, onDelete,
+}: {
+  rule: MockRule;
+  isDragging: boolean;
+  indent?: boolean;
+  onDragStart: (e: React.DragEvent) => void;
+  onDragEnd: () => void;
+  onDragOverHalf?: (e: React.DragEvent, half: 'top' | 'bottom') => void;
+  onToggle: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div
+      draggable
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onDragOver={onDragOverHalf ? (e) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        onDragOverHalf(e, e.clientY < rect.top + rect.height / 2 ? 'top' : 'bottom');
+      } : undefined}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+          // handled by parent DropLine or group-level handler
+        }
+      }}
+      className={`flex items-center gap-2 border-b border-[var(--border)] last:border-b-0 transition-colors hover:bg-[color-mix(in_srgb,var(--accent)_4%,transparent)] ${rule.enabled ? "" : "opacity-45"} ${isDragging ? "opacity-30" : ""} ${indent ? "pl-8 pr-5" : "px-5"} py-[10px]`}
+    >
+      {/* Drag handle */}
+      <span
+        className="flex-shrink-0 text-[var(--faint)] cursor-grab active:cursor-grabbing text-[14px] leading-none select-none"
+        title="Drag to reorder or move to group"
+      >⠿</span>
+
+      <button
+        className={`flex-shrink-0 w-[34px] h-[19px] border-none rounded-full relative cursor-pointer transition-colors p-0 ${rule.enabled ? "bg-[var(--accent)]" : "bg-[var(--border)]"}`}
+        onClick={onToggle}
+        title={rule.enabled ? "Enabled — click to disable" : "Disabled — click to enable"}
+      >
+        <span
+          className="absolute top-[2px] left-[2px] w-[15px] h-[15px] rounded-full bg-white transition-transform"
+          style={{ transform: rule.enabled ? "translateX(15px)" : "translateX(0)" }}
+        />
+      </button>
+
+      <div className="flex-1 min-w-0">
+        <div className="text-[13px] font-medium text-[var(--text)] whitespace-nowrap overflow-hidden text-ellipsis mb-[3px]">{rule.name}</div>
+        <div className="flex items-center gap-[6px] text-[11px] text-[var(--muted)] whitespace-nowrap overflow-hidden font-mono">
+          <span className={`font-mono text-[11px] font-semibold px-[7px] py-[2px] rounded-[5px] inline-block min-w-[48px] text-center ${methodClass(rule.method || "GET")}`}>{rule.method || "ANY"}</span>
+          <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[var(--faint)]">{rule.url_contains || "(any URL)"}</span>
+        </div>
+      </div>
+
+      <span className={`flex-shrink-0 font-mono text-xs font-semibold px-2 py-[2px] rounded-[6px] ${mkStatusClass(rule.status_code)}`}>
+        {rule.status_code}
+      </span>
+
+      {(rule.delay_ms ?? 0) > 0 && (
+        <span className="flex-shrink-0 font-mono text-[11px] px-[7px] py-[2px] rounded-[6px] bg-[color-mix(in_srgb,var(--amber)_12%,transparent)] text-[var(--amber)]" title="Response delay">
+          ⏱{rule.delay_ms}ms
+        </span>
+      )}
+      {rule.func && (
+        <span className="flex-shrink-0 font-mono text-[11px] px-[7px] py-[2px] rounded-[6px] bg-[color-mix(in_srgb,var(--purple)_14%,transparent)] text-[var(--purple)]" title="Dynamic Python function">
+          fn
+        </span>
+      )}
+
+      <span className="flex-shrink-0 text-[11px] text-[var(--faint)] font-mono w-7 text-right" title="Hit count">
+        {rule.hits}×
+      </span>
+
+      <span className="w-px self-stretch bg-[var(--border)] flex-shrink-0 my-1" />
+      <div className="flex-shrink-0 flex items-center bg-[var(--panel)] border border-[var(--border)] rounded-[7px] overflow-hidden">
+        <button
+          className="bg-none border-none cursor-pointer text-[var(--muted)] text-[13px] px-[9px] py-1 leading-none hover:text-[var(--accent)] hover:bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] transition-colors"
+          onClick={onEdit}
+          title="Edit"
+        >✏</button>
+        <span className="w-px self-stretch bg-[var(--border)]" />
+        <button
+          className="bg-none border-none cursor-pointer text-[var(--muted)] text-[13px] px-[9px] py-1 leading-none hover:text-[var(--red)] hover:bg-[color-mix(in_srgb,var(--red)_10%,transparent)] transition-colors"
+          onClick={onDelete}
+          title="Delete"
+        >✕</button>
+      </div>
+    </div>
+  );
+}
+
+// ---------- main component ----------
+
 export default function MockModal({
-  mocks, initialDraft, onClose,
+  mocks, groups, initialDraft, onClose,
 }: {
   mocks: MockRule[];
+  groups: MockGroup[];
   initialDraft: Partial<MockRule> | null;
   onClose: () => void;
 }) {
@@ -81,6 +252,42 @@ export default function MockModal({
   const [importMsg, setImportMsg] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Group management
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
+  const [groupNameDraft, setGroupNameDraft] = useState("");
+
+  // Drag-and-drop
+  const [dragRuleId, setDragRuleId] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollRafRef = useRef<number | null>(null);
+
+  const stopAutoScroll = () => {
+    if (scrollRafRef.current !== null) {
+      cancelAnimationFrame(scrollRafRef.current);
+      scrollRafRef.current = null;
+    }
+  };
+
+  const handleScrollDragOver = (e: React.DragEvent) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const ZONE = 80;
+    const MAX_SPEED = 14;
+    const distTop = e.clientY - rect.top;
+    const distBottom = rect.bottom - e.clientY;
+    let speed = 0;
+    if (distTop < ZONE) speed = -MAX_SPEED * (1 - distTop / ZONE);
+    else if (distBottom < ZONE) speed = MAX_SPEED * (1 - distBottom / ZONE);
+    stopAutoScroll();
+    if (speed !== 0) {
+      const tick = () => { el.scrollTop += speed; scrollRafRef.current = requestAnimationFrame(tick); };
+      scrollRafRef.current = requestAnimationFrame(tick);
+    }
+  };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -103,10 +310,103 @@ export default function MockModal({
     finally { setImporting(false); }
   };
 
+  // Group actions
+  const addGroup = () => {
+    saveGroup({ name: "New Group", order: groups.length, collapsed: false }).catch(() => {});
+  };
+
+  const startRenameGroup = (id: string, name: string) => {
+    setEditingGroupId(id);
+    setGroupNameDraft(name);
+  };
+
+  const finishRenameGroup = (id: string) => {
+    saveGroup({ id, name: groupNameDraft.trim() || "Group" }).catch(() => {});
+    setEditingGroupId(null);
+  };
+
+  const removeGroup = (id: string) => {
+    deleteGroup(id).catch(() => {});
+  };
+
+  const toggleGroupCollapsed = (id: string) => {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const toggleGroupEnabled = (group: MockGroup) => {
+    const rulesInGroup = mocks.filter(r => (r.group_id ?? null) === group.id);
+    const allEnabled = rulesInGroup.every(r => r.enabled);
+    Promise.all(rulesInGroup.map(r => saveMock({ ...r, enabled: !allEnabled }))).catch(() => {});
+  };
+
+  // DnD
+  const handleDragStart = (e: React.DragEvent, ruleId: string) => {
+    setDragRuleId(ruleId);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDragEnd = () => {
+    setDragRuleId(null);
+    setDropTarget(null);
+    stopAutoScroll();
+  };
+
+  const handleDragOver = (e: React.DragEvent, target: DropTarget) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setDropTarget(target);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+      setDropTarget(null);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent, groupId: string | null, beforeRuleId: string | null) => {
+    e.preventDefault();
+    if (!dragRuleId) return;
+    const items = computeReorder(mocks, groups, dragRuleId, groupId, beforeRuleId);
+    reorderMocks(items).catch(() => {});
+    setDragRuleId(null);
+    setDropTarget(null);
+  };
+
+  const isDropActive = (groupId: string | null, beforeRuleId: string | null) =>
+    dropTarget !== null &&
+    dropTarget.groupId === groupId &&
+    dropTarget.beforeRuleId === beforeRuleId;
+
+  // Build grouped structure
   const q = search.trim().toLowerCase();
   const filtered = q
     ? mocks.filter(m => m.name.toLowerCase().includes(q) || m.url_contains.toLowerCase().includes(q))
     : mocks;
+
+  const sortedGroups = [...groups].sort((a, b) => a.order - b.order);
+  const validGroupIds = new Set(sortedGroups.map(g => g.id));
+
+  const grouped = new Map<string | null, MockRule[]>();
+  grouped.set(null, []);
+  for (const g of sortedGroups) grouped.set(g.id, []);
+
+  for (const rule of (q ? filtered : mocks)) {
+    const gid = rule.group_id && validGroupIds.has(rule.group_id) ? rule.group_id : null;
+    grouped.get(gid)!.push(rule);
+  }
+  for (const [gid, rules] of grouped) {
+    grouped.set(gid, [...rules].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)));
+  }
+
+  const hasGroups = sortedGroups.length > 0;
+  const ungrouped = grouped.get(null) ?? [];
+
+  const allEmpty = mocks.length === 0;
+  const searchEmpty = q && filtered.length === 0;
 
   return (
     <>
@@ -160,108 +460,253 @@ export default function MockModal({
           />
         ) : (
           <>
-            <div className="p-0 overflow-auto flex-1">
-              {mocks.length === 0 ? (
+            <div ref={scrollRef} className="p-0 overflow-auto flex-1" onDragOver={dragRuleId ? handleScrollDragOver : undefined} onDragLeave={stopAutoScroll}>
+              {allEmpty ? (
                 <div className="flex flex-col items-center justify-center py-[52px] px-6 gap-2 text-center">
                   <div className="text-[36px] mb-1">🐔</div>
                   <div className="text-[14px] font-medium text-[var(--text)]">No mock rules yet</div>
                   <div className="text-xs text-[var(--faint)] max-w-[340px] leading-[1.55]">Create one here, or right-click any captured request → Mock this response</div>
                 </div>
-              ) : filtered.length === 0 ? (
+              ) : searchEmpty ? (
                 <div className="flex flex-col items-center justify-center py-[52px] px-6 gap-2 text-center">
                   <div className="text-[14px] font-medium text-[var(--text)]">No rules match &ldquo;{search}&rdquo;</div>
                 </div>
-              ) : (
+              ) : q ? (
+                // Flat search results (no groups)
                 <div className="flex flex-col py-[6px]">
                   {filtered.map(m => (
-                    <div
+                    <RuleRow
                       key={m.id}
-                      className={`flex items-center gap-3 px-5 py-[10px] border-b border-[var(--border)] last:border-b-0 transition-colors hover:bg-[color-mix(in_srgb,var(--accent)_4%,transparent)] ${m.enabled ? "" : "opacity-45"}`}
-                    >
-                      <button
-                        className={`flex-shrink-0 w-[34px] h-[19px] border-none rounded-full relative cursor-pointer transition-colors p-0 ${m.enabled ? "bg-[var(--accent)]" : "bg-[var(--border)]"}`}
-                        onClick={() => toggle(m)}
-                        title={m.enabled ? "Enabled — click to disable" : "Disabled — click to enable"}
-                      >
-                        <span
-                          className="absolute top-[2px] left-[2px] w-[15px] h-[15px] rounded-full bg-white transition-transform"
-                          style={{ transform: m.enabled ? "translateX(15px)" : "translateX(0)" }}
-                        />
-                      </button>
-
-                      <div className="flex-1 min-w-0">
-                        <div className="text-[13px] font-medium text-[var(--text)] whitespace-nowrap overflow-hidden text-ellipsis mb-[3px]">{m.name}</div>
-                        <div className="flex items-center gap-[6px] text-[11px] text-[var(--muted)] whitespace-nowrap overflow-hidden font-mono">
-                          <span className={`font-mono text-[11px] font-semibold px-[7px] py-[2px] rounded-[5px] inline-block min-w-[48px] text-center ${methodClass(m.method || "GET")}`}>{m.method || "ANY"}</span>
-                          <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[var(--faint)]">{m.url_contains || "(any URL)"}</span>
-                        </div>
-                      </div>
-
-                      <span className={`flex-shrink-0 font-mono text-xs font-semibold px-2 py-[2px] rounded-[6px] ${mkStatusClass(m.status_code)}`}>
-                        {m.status_code}
-                      </span>
-
-                      {(m.delay_ms ?? 0) > 0 && (
-                        <span className="flex-shrink-0 font-mono text-[11px] px-[7px] py-[2px] rounded-[6px] bg-[color-mix(in_srgb,var(--amber)_12%,transparent)] text-[var(--amber)]" title="Response delay">
-                          ⏱{m.delay_ms}ms
-                        </span>
-                      )}
-                      {m.func && (
-                        <span className="flex-shrink-0 font-mono text-[11px] px-[7px] py-[2px] rounded-[6px] bg-[color-mix(in_srgb,var(--purple)_14%,transparent)] text-[var(--purple)]" title="Dynamic Python function">
-                          fn
-                        </span>
-                      )}
-
-                      <span className="flex-shrink-0 text-[11px] text-[var(--faint)] font-mono w-7 text-right" title="Hit count">
-                        {m.hits}×
-                      </span>
-
-                      <span className="w-px self-stretch bg-[var(--border)] flex-shrink-0 my-1" />
-                      <div className="flex-shrink-0 flex items-center bg-[var(--panel)] border border-[var(--border)] rounded-[7px] overflow-hidden">
-                        <button
-                          className="bg-none border-none cursor-pointer text-[var(--muted)] text-[13px] px-[9px] py-1 leading-none hover:text-[var(--accent)] hover:bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] transition-colors"
-                          onClick={() => setEditing(m)}
-                          title="Edit"
-                        >✏</button>
-                        <span className="w-px self-stretch bg-[var(--border)]" />
-                        <button
-                          className="bg-none border-none cursor-pointer text-[var(--muted)] text-[13px] px-[9px] py-1 leading-none hover:text-[var(--red)] hover:bg-[color-mix(in_srgb,var(--red)_10%,transparent)] transition-colors"
-                          onClick={() => remove(m.id)}
-                          title="Delete"
-                        >✕</button>
-                      </div>
+                      rule={m}
+                      isDragging={false}
+                      onDragStart={() => {}}
+                      onDragEnd={() => {}}
+                      onToggle={() => toggle(m)}
+                      onEdit={() => setEditing(m)}
+                      onDelete={() => remove(m.id)}
+                    />
+                  ))}
+                </div>
+              ) : !hasGroups ? (
+                // No groups: flat list identical to pre-groups behavior
+                <div className="flex flex-col py-[6px]">
+                  {mocks.map((rule, idx) => (
+                    <div key={rule.id}>
+                      <DropLine
+                        isActive={isDropActive(null, rule.id)}
+                        onDragOver={e => handleDragOver(e, { groupId: null, beforeRuleId: rule.id })}
+                        onDragLeave={() => setDropTarget(null)}
+                        onDrop={e => handleDrop(e, null, rule.id)}
+                      />
+                      <RuleRow
+                        rule={rule}
+                        isDragging={dragRuleId === rule.id}
+                        onDragStart={e => handleDragStart(e, rule.id)}
+                        onDragEnd={handleDragEnd}
+                        onDragOverHalf={(e, half) => {
+                          const targetId = half === 'top' ? rule.id : (mocks[idx + 1]?.id ?? null);
+                          handleDragOver(e, { groupId: null, beforeRuleId: targetId });
+                        }}
+                        onToggle={() => toggle(rule)}
+                        onEdit={() => setEditing(rule)}
+                        onDelete={() => remove(rule.id)}
+                      />
                     </div>
                   ))}
+                  <DropLine
+                    isActive={isDropActive(null, null)}
+                    onDragOver={e => handleDragOver(e, { groupId: null, beforeRuleId: null })}
+                    onDragLeave={() => setDropTarget(null)}
+                    onDrop={e => handleDrop(e, null, null)}
+                  />
+                </div>
+              ) : (
+                // Grouped list with drag-and-drop
+                <div className="flex flex-col py-[6px]">
+
+                  {sortedGroups.map(group => {
+                    const isCollapsed = collapsedGroups.has(group.id);
+                    const rulesInGroup = grouped.get(group.id) ?? [];
+                    const isGroupDragOver = dragRuleId !== null && dropTarget?.groupId === group.id && dropTarget?.beforeRuleId === null;
+
+                    return (
+                      <div key={group.id}>
+                        {/* Group header — also a drop zone for appending */}
+                        <div
+                          className={`flex items-center gap-2 px-4 py-[9px] border-b border-[var(--border)] bg-[var(--panel)] cursor-default select-none transition-colors ${isGroupDragOver ? "bg-[color-mix(in_srgb,var(--accent)_10%,var(--panel))] border-[var(--accent)]" : ""}`}
+                          onDragOver={e => handleDragOver(e, { groupId: group.id, beforeRuleId: null })}
+                          onDragLeave={handleDragLeave}
+                          onDrop={e => handleDrop(e, group.id, null)}
+                        >
+                          <button
+                            className="w-4 h-4 flex items-center justify-center text-[10px] text-[var(--muted)] hover:text-[var(--text)] transition-colors flex-shrink-0 bg-none border-none cursor-pointer"
+                            onClick={() => toggleGroupCollapsed(group.id)}
+                            title={isCollapsed ? "Expand" : "Collapse"}
+                          >
+                            {isCollapsed ? "▶" : "▼"}
+                          </button>
+                          <span className="text-[12px] flex-shrink-0">📁</span>
+                          {editingGroupId === group.id ? (
+                            <input
+                              className="flex-1 bg-transparent border-b border-[var(--accent)] text-[13px] font-semibold text-[var(--text)] outline-none py-[1px]"
+                              value={groupNameDraft}
+                              onChange={e => setGroupNameDraft(e.target.value)}
+                              onBlur={() => finishRenameGroup(group.id)}
+                              onKeyDown={e => {
+                                if (e.key === "Enter") finishRenameGroup(group.id);
+                                if (e.key === "Escape") setEditingGroupId(null);
+                              }}
+                              autoFocus
+                            />
+                          ) : (
+                            <span
+                              className="flex-1 text-[13px] font-semibold text-[var(--text)] cursor-text truncate"
+                              onClick={() => startRenameGroup(group.id, group.name)}
+                              title="Click to rename"
+                            >{group.name}</span>
+                          )}
+                          <span className="text-[11px] text-[var(--faint)] flex-shrink-0">
+                            {rulesInGroup.length}
+                          </span>
+                          <button
+                            className="flex-shrink-0 text-[var(--muted)] text-[12px] px-[6px] py-[2px] bg-none border-none cursor-pointer hover:text-[var(--text)] hover:bg-[var(--panel-2)] rounded transition-colors"
+                            onClick={() => toggleGroupEnabled(group)}
+                            title="Enable/disable all in group"
+                          >⏻</button>
+                          <button
+                            className="flex-shrink-0 text-[var(--muted)] text-[12px] px-[6px] py-[2px] bg-none border-none cursor-pointer hover:text-[var(--red)] hover:bg-[color-mix(in_srgb,var(--red)_10%,transparent)] rounded transition-colors"
+                            onClick={() => removeGroup(group.id)}
+                            title="Delete group (rules become ungrouped)"
+                          >✕</button>
+                        </div>
+
+                        {/* Rules inside group */}
+                        {!isCollapsed && (
+                          <>
+                            {rulesInGroup.map((rule, idx) => (
+                              <div key={rule.id}>
+                                <DropLine
+                                  isActive={isDropActive(group.id, rule.id)}
+                                  onDragOver={e => handleDragOver(e, { groupId: group.id, beforeRuleId: rule.id })}
+                                  onDragLeave={() => setDropTarget(null)}
+                                  onDrop={e => handleDrop(e, group.id, rule.id)}
+                                />
+                                <RuleRow
+                                  rule={rule}
+                                  isDragging={dragRuleId === rule.id}
+                                  indent
+                                  onDragStart={e => handleDragStart(e, rule.id)}
+                                  onDragEnd={handleDragEnd}
+                                  onDragOverHalf={(e, half) => {
+                                    const targetId = half === 'top' ? rule.id : (rulesInGroup[idx + 1]?.id ?? null);
+                                    handleDragOver(e, { groupId: group.id, beforeRuleId: targetId });
+                                  }}
+                                  onToggle={() => toggle(rule)}
+                                  onEdit={() => setEditing(rule)}
+                                  onDelete={() => remove(rule.id)}
+                                />
+                              </div>
+                            ))}
+                            {/* Empty group drop zone */}
+                            {rulesInGroup.length === 0 && (
+                              <div
+                                className={`mx-8 my-2 h-8 rounded-[6px] border-2 border-dashed flex items-center justify-center text-[11px] transition-colors ${dropTarget?.groupId === group.id ? "border-[var(--accent)] text-[var(--accent)]" : "border-[var(--border)] text-[var(--faint)]"}`}
+                                onDragOver={e => handleDragOver(e, { groupId: group.id, beforeRuleId: null })}
+                                onDragLeave={() => setDropTarget(null)}
+                                onDrop={e => handleDrop(e, group.id, null)}
+                              >
+                                Drop rule here
+                              </div>
+                            )}
+                            {/* Append-to-end drop zone */}
+                            {rulesInGroup.length > 0 && (
+                              <DropLine
+                                isActive={isDropActive(group.id, null) && !isGroupDragOver}
+                                onDragOver={e => handleDragOver(e, { groupId: group.id, beforeRuleId: null })}
+                                onDragLeave={() => setDropTarget(null)}
+                                onDrop={e => handleDrop(e, group.id, null)}
+                              />
+                            )}
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {/* Ungrouped section */}
+                  {hasGroups && (
+                    <div
+                      className={`flex items-center gap-2 px-4 py-[9px] border-b border-[var(--border)] bg-[var(--panel)] select-none transition-colors ${dragRuleId !== null && dropTarget?.groupId === null && dropTarget?.beforeRuleId === null ? "bg-[color-mix(in_srgb,var(--accent)_10%,var(--panel))] border-[var(--accent)]" : ""}`}
+                      onDragOver={e => handleDragOver(e, { groupId: null, beforeRuleId: null })}
+                      onDragLeave={handleDragLeave}
+                      onDrop={e => handleDrop(e, null, null)}
+                    >
+                      <span className="text-[12px] flex-shrink-0">⊖</span>
+                      <span className="flex-1 text-[13px] font-semibold text-[var(--muted)]">Ungrouped</span>
+                      <span className="text-[11px] text-[var(--faint)]">{ungrouped.length}</span>
+                    </div>
+                  )}
+
+                  {ungrouped.map((rule, idx) => (
+                    <div key={rule.id}>
+                      <DropLine
+                        isActive={isDropActive(null, rule.id)}
+                        onDragOver={e => handleDragOver(e, { groupId: null, beforeRuleId: rule.id })}
+                        onDragLeave={() => setDropTarget(null)}
+                        onDrop={e => handleDrop(e, null, rule.id)}
+                      />
+                      <RuleRow
+                        rule={rule}
+                        isDragging={dragRuleId === rule.id}
+                        onDragStart={e => handleDragStart(e, rule.id)}
+                        onDragEnd={handleDragEnd}
+                        onDragOverHalf={(e, half) => {
+                          const targetId = half === 'top' ? rule.id : (ungrouped[idx + 1]?.id ?? null);
+                          handleDragOver(e, { groupId: null, beforeRuleId: targetId });
+                        }}
+                        onToggle={() => toggle(rule)}
+                        onEdit={() => setEditing(rule)}
+                        onDelete={() => remove(rule.id)}
+                      />
+                    </div>
+                  ))}
+
+                  {/* Append-to-ungrouped drop zone */}
+                  <DropLine
+                    isActive={isDropActive(null, null) && !(dragRuleId !== null && !hasGroups)}
+                    onDragOver={e => handleDragOver(e, { groupId: null, beforeRuleId: null })}
+                    onDragLeave={() => setDropTarget(null)}
+                    onDrop={e => handleDrop(e, null, null)}
+                  />
+
                 </div>
               )}
             </div>
 
-            <div className="flex justify-end gap-[10px] px-5 py-[14px] border-t border-[var(--border)] bg-[var(--bg-2)] rounded-b-[14px] flex-shrink-0">
+            <div className="flex justify-end gap-[10px] px-5 py-[14px] border-t border-[var(--border)] bg-[var(--bg-2)] rounded-b-[14px] flex-shrink-0 flex-wrap">
               <input ref={fileInputRef} type="file" accept=".json,application/json" className="hidden" onChange={handleImport} />
               <button
                 className="bg-[var(--panel-2)] text-[var(--text)] border border-[var(--border)] rounded-[7px] px-3 py-[6px] text-xs cursor-pointer hover:bg-[#232c3d] transition-colors disabled:opacity-50 disabled:cursor-default"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={importing}
                 title="Import from JSON"
-              >
-                ↑ Import
-              </button>
+              >↑ Import</button>
               <button
                 className="bg-[var(--panel-2)] text-[var(--text)] border border-[var(--border)] rounded-[7px] px-3 py-[6px] text-xs cursor-pointer hover:bg-[#232c3d] transition-colors disabled:opacity-50 disabled:cursor-default"
                 onClick={() => exportMocks(mocks)}
                 disabled={mocks.length === 0}
                 title="Export as JSON"
-              >
-                ↓ Export
-              </button>
+              >↓ Export</button>
               {importMsg && <span className="text-xs text-[var(--green)] self-center">{importMsg}</span>}
               <span className="flex-1" />
               <button
+                className="bg-[var(--panel-2)] text-[var(--text)] border border-[var(--border)] rounded-[7px] px-3 py-[6px] text-xs cursor-pointer hover:bg-[#232c3d] transition-colors"
+                onClick={addGroup}
+              >📁 New group</button>
+              <button
                 className="bg-[var(--panel-2)] text-[var(--accent)] border border-[var(--accent)] rounded-[7px] px-3 py-[6px] text-xs cursor-pointer hover:bg-[#1c2740] transition-colors"
                 onClick={() => setEditing({ enabled: true, status_code: 200 })}
-              >
-                ＋ New mock rule
-              </button>
+              >＋ New mock rule</button>
             </div>
           </>
         )}
@@ -313,6 +758,8 @@ function MockEditor({ draft, onCancel, onSaved }: { draft: Partial<MockRule>; on
         headers: textToHeaders(headers), body,
         delay_ms: Math.max(0, parseInt(delayMs, 10) || 0),
         func: funcMode ? funcCode : "",
+        group_id: draft.group_id,
+        order: draft.order,
       });
       onSaved();
     } catch { setSaving(false); }

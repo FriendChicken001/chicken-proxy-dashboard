@@ -54,6 +54,7 @@ from mitmproxy.addonmanager import Loader
 log = logging.getLogger("mitm_dashboard")
 
 MOCK_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mocks.json")
+BREAKPOINT_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "breakpoints.json")
 
 
 # ---------------------------------------------------------------------------
@@ -71,6 +72,7 @@ def _normalize_mock(data: Dict[str, Any], existing_hits: int = 0) -> Dict[str, A
                 headers.append([str(k), str(v)])
         except (ValueError, TypeError):
             continue
+    group_id = data.get("group_id")
     return {
         "id": mid,
         "enabled": bool(data.get("enabled", True)),
@@ -83,6 +85,59 @@ def _normalize_mock(data: Dict[str, Any], existing_hits: int = 0) -> Dict[str, A
         "delay_ms": max(0, int(data.get("delay_ms") or 0)),
         "func": str(data.get("func") or ""),
         "hits": int(existing_hits),
+        "group_id": str(group_id) if group_id else None,
+        "order": int(data.get("order") or 0),
+    }
+
+
+def _normalize_breakpoint(data: Dict[str, Any]) -> Dict[str, Any]:
+    bid = str(data.get("id") or f"b{int(time.time() * 1000)}")
+    return {
+        "id": bid,
+        "enabled": bool(data.get("enabled", True)),
+        "name": str(data.get("name") or "Breakpoint"),
+        "method": str(data.get("method") or "").upper(),
+        "url_contains": str(data.get("url_contains") or ""),
+        "phase": "response" if data.get("phase") == "response" else "request",
+        "func": str(data.get("func") or ""),
+        "hits": int(data.get("hits") or 0),
+        "timeout_s": int(data.get("timeout_s") or 0),
+        "max_hits": int(data.get("max_hits") or 0),
+    }
+
+
+def _breakpoint_matches(bp: Dict[str, Any], flow: http.HTTPFlow) -> bool:
+    if not bp.get("enabled"):
+        return False
+    method = bp.get("method", "")
+    needle = bp.get("url_contains", "")
+    if not method and not needle:
+        return False
+    if method and method != flow.request.method.upper():
+        return False
+    if needle and needle not in flow.request.pretty_url:
+        return False
+    func_code = (bp.get("func") or "").strip()
+    if func_code:
+        try:
+            ns: Dict[str, Any] = {}
+            exec(compile(func_code, "<bp_func>", "exec"), ns)  # noqa: S102
+            if "should_break" in ns:
+                return bool(ns["should_break"](flow))
+        except Exception as exc:
+            log.warning(f"[dashboard] breakpoint func error: {exc}")
+            return False
+    return True
+
+
+def _normalize_group(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Coerce a user-supplied group into a clean, stored shape."""
+    gid = str(data.get("id") or f"g{int(time.time() * 1000)}")
+    return {
+        "id": gid,
+        "name": str(data.get("name") or "Group"),
+        "order": int(data.get("order") or 0),
+        "collapsed": bool(data.get("collapsed", False)),
     }
 
 
@@ -225,6 +280,9 @@ def _flow_summary(flow: http.HTTPFlow) -> Dict[str, Any]:
         "completed": resp is not None,
         "mocked": bool(flow.metadata.get("mock")),
         "mock_name": flow.metadata.get("mock"),
+        "intercepted": bool(flow.intercepted),
+        "breakpoint_name": flow.metadata.get("breakpoint"),
+        "breakpoint_phase": flow.metadata.get("breakpoint_phase"),
     }
 
 
@@ -333,7 +391,10 @@ class CertHandler(tornado.web.RequestHandler):
 
 class MocksHandler(_CorsHandler):
     def get(self) -> None:
-        self.finish(json.dumps({"mocks": self.store.list_mocks()}))
+        self.finish(json.dumps({
+            "mocks": self.store.list_mocks(),
+            "groups": self.store.list_groups(),
+        }))
 
     def post(self) -> None:
         try:
@@ -351,6 +412,132 @@ class MockItemHandler(_CorsHandler):
         self.finish(json.dumps({"ok": True}))
 
 
+class MockReorderHandler(_CorsHandler):
+    def post(self) -> None:
+        try:
+            items = json.loads(self.request.body or b"[]")
+        except Exception:
+            self.set_status(400)
+            self.finish(json.dumps({"error": "invalid JSON"}))
+            return
+        for item in items:
+            mid = str(item.get("id", ""))
+            if mid in self.store.mocks:
+                gid = item.get("group_id")
+                self.store.mocks[mid]["group_id"] = str(gid) if gid else None
+                self.store.mocks[mid]["order"] = int(item.get("order", 0))
+        self.store._save_mocks()
+        self.store._broadcast_mocks()
+        self.finish(json.dumps({"ok": True}))
+
+
+class GroupsHandler(_CorsHandler):
+    def get(self) -> None:
+        self.finish(json.dumps({"groups": self.store.list_groups()}))
+
+    def post(self) -> None:
+        try:
+            data = json.loads(self.request.body or b"{}")
+        except Exception:
+            self.set_status(400)
+            self.finish(json.dumps({"error": "invalid JSON"}))
+            return
+        self.finish(json.dumps(self.store.upsert_group(data)))
+
+
+class GroupItemHandler(_CorsHandler):
+    def delete(self, group_id: str) -> None:
+        self.store.delete_group(group_id)
+        self.finish(json.dumps({"ok": True}))
+
+
+class BreakpointsHandler(_CorsHandler):
+    def get(self) -> None:
+        self.finish(json.dumps({"breakpoints": self.store.list_breakpoints()}))
+
+    def post(self) -> None:
+        try:
+            data = json.loads(self.request.body or b"{}")
+        except Exception:
+            self.set_status(400)
+            self.finish(json.dumps({"error": "invalid JSON"}))
+            return
+        self.finish(json.dumps(self.store.upsert_breakpoint(data)))
+
+
+class BreakpointItemHandler(_CorsHandler):
+    def delete(self, bp_id: str) -> None:
+        self.store.delete_breakpoint(bp_id)
+        self.finish(json.dumps({"ok": True}))
+
+
+class ResumeFlowHandler(_CorsHandler):
+    def post(self, flow_id: str) -> None:
+        flow = self.store.intercepted_flows.get(flow_id)
+        if flow is None:
+            self.set_status(404)
+            self.finish(json.dumps({"error": "not found"}))
+            return
+        flow.resume()
+        self.store.intercepted_flows.pop(flow_id, None)
+        self.store._broadcast({"type": "flow", "data": _flow_summary(flow)})
+        self.finish(json.dumps({"ok": True}))
+
+
+class AbortFlowHandler(_CorsHandler):
+    def post(self, flow_id: str) -> None:
+        flow = self.store.intercepted_flows.pop(flow_id, None)
+        if flow is None:
+            self.set_status(404)
+            self.finish(json.dumps({"error": "not found"}))
+            return
+        flow.kill()
+        self.store._broadcast({"type": "flow", "data": _flow_summary(flow)})
+        self.finish(json.dumps({"ok": True}))
+
+
+class EditResumeFlowHandler(_CorsHandler):
+    def post(self, flow_id: str) -> None:
+        flow = self.store.intercepted_flows.get(flow_id)
+        if flow is None:
+            self.set_status(404)
+            self.finish(json.dumps({"error": "not found or not intercepted"}))
+            return
+        try:
+            data = json.loads(self.request.body or b"{}")
+        except Exception:
+            self.set_status(400)
+            self.finish(json.dumps({"error": "invalid JSON"}))
+            return
+        phase = flow.metadata.get("breakpoint_phase", "request")
+        if phase == "request":
+            req_data = data.get("request", {})
+            if "method" in req_data:
+                flow.request.method = str(req_data["method"]).upper()
+            if "path" in req_data:
+                flow.request.path = str(req_data["path"])
+            if "headers" in req_data:
+                flow.request.headers.clear()
+                for k, v in req_data["headers"].items():
+                    flow.request.headers[k] = str(v)
+            if "body" in req_data:
+                flow.request.set_text(str(req_data.get("body") or ""))
+        elif phase == "response" and flow.response:
+            resp_data = data.get("response", {})
+            if "status_code" in resp_data:
+                flow.response.status_code = int(resp_data["status_code"])
+            if "headers" in resp_data:
+                flow.response.headers.clear()
+                for k, v in resp_data["headers"].items():
+                    flow.response.headers[k] = str(v)
+            if "body" in resp_data:
+                flow.response.set_text(str(resp_data.get("body") or ""))
+        self.store.intercepted_flows.pop(flow_id, None)
+        flow.resume()
+        self.store._broadcast({"type": "flow", "data": _flow_summary(flow)})
+        self.finish(json.dumps({"ok": True}))
+
+
 class FlowSocket(tornado.websocket.WebSocketHandler):
     def check_origin(self, origin: str) -> bool:
         return True
@@ -362,6 +549,11 @@ class FlowSocket(tornado.websocket.WebSocketHandler):
     def open(self) -> None:
         self.store.clients.add(self)
         self.write_message(json.dumps({"type": "stats", "data": self.store.stats()}))
+        self.write_message(json.dumps({"type": "mocks", "data": {
+            "rules": self.store.list_mocks(),
+            "groups": self.store.list_groups(),
+        }}))
+        self.write_message(json.dumps({"type": "breakpoints", "data": self.store.list_breakpoints()}))
 
     def on_close(self) -> None:
         self.store.clients.discard(self)
@@ -376,11 +568,15 @@ class DashboardAddon:
         self.flows: Deque[http.HTTPFlow] = deque()
         self.clients: Set[FlowSocket] = set()
         self.mocks: "Dict[str, Dict[str, Any]]" = {}
+        self.groups: "Dict[str, Dict[str, Any]]" = {}
+        self.breakpoints: "Dict[str, Dict[str, Any]]" = {}
+        self.intercepted_flows: "Dict[str, http.HTTPFlow]" = {}
         self._app: Optional[tornado.web.Application] = None
         self._server = None
         self.max_flows = 5000
         self.body_limit = 65536
         self._load_mocks()
+        self._load_breakpoints()
 
     # --- options ---
     def load(self, loader: Loader) -> None:
@@ -408,7 +604,15 @@ class DashboardAddon:
                 (r"/api/clear", ClearHandler),
                 (r"/api/connection", ConnectionHandler),
                 (r"/api/mocks", MocksHandler),
+                (r"/api/mocks/reorder", MockReorderHandler),
                 (r"/api/mocks/([^/]+)", MockItemHandler),
+                (r"/api/groups", GroupsHandler),
+                (r"/api/groups/([^/]+)", GroupItemHandler),
+                (r"/api/breakpoints", BreakpointsHandler),
+                (r"/api/breakpoints/([^/]+)", BreakpointItemHandler),
+                (r"/api/flows/([^/]+)/resume", ResumeFlowHandler),
+                (r"/api/flows/([^/]+)/abort", AbortFlowHandler),
+                (r"/api/flows/([^/]+)/edit-resume", EditResumeFlowHandler),
                 (r"/cert", CertHandler),
                 (r"/ws", FlowSocket),
             ],
@@ -438,17 +642,65 @@ class DashboardAddon:
                 _apply_mock(rule, flow)
                 flow.metadata["mock"] = rule.get("name") or rule["id"]
                 rule["hits"] = rule.get("hits", 0) + 1
-                self._broadcast({"type": "mocks", "data": self.list_mocks()})
+                self._broadcast_mocks()
                 break
+        # Apply first matching request-phase breakpoint (only if not mocked).
+        if not flow.metadata.get("mock"):
+            for bp in list(self.breakpoints.values()):
+                if bp.get("phase", "request") == "request" and _breakpoint_matches(bp, flow):
+                    flow.intercept()
+                    flow.metadata["breakpoint"] = bp.get("name") or bp["id"]
+                    flow.metadata["breakpoint_phase"] = "request"
+                    bp["hits"] = bp.get("hits", 0) + 1
+                    self.intercepted_flows[flow.id] = flow
+                    max_hits = bp.get("max_hits", 0)
+                    if max_hits > 0 and bp["hits"] >= max_hits:
+                        bp["enabled"] = False
+                        self._save_breakpoints()
+                    timeout_s = bp.get("timeout_s", 0)
+                    if timeout_s > 0:
+                        fid = flow.id
+                        import asyncio
+                        asyncio.get_event_loop().call_later(timeout_s, lambda: self._auto_resume(fid))
+                    self._broadcast({"type": "breakpoints", "data": self.list_breakpoints()})
+                    break
         if flow not in self.flows:
             self.flows.append(flow)
             self._trim()
+        self._broadcast({"type": "flow", "data": _flow_summary(flow)})
 
     def response(self, flow: http.HTTPFlow) -> None:
+        # Apply first matching response-phase breakpoint (only if not mocked/already intercepted).
+        if not flow.metadata.get("mock") and not flow.metadata.get("breakpoint"):
+            for bp in list(self.breakpoints.values()):
+                if bp.get("phase") == "response" and _breakpoint_matches(bp, flow):
+                    flow.intercept()
+                    flow.metadata["breakpoint"] = bp.get("name") or bp["id"]
+                    flow.metadata["breakpoint_phase"] = "response"
+                    bp["hits"] = bp.get("hits", 0) + 1
+                    self.intercepted_flows[flow.id] = flow
+                    max_hits = bp.get("max_hits", 0)
+                    if max_hits > 0 and bp["hits"] >= max_hits:
+                        bp["enabled"] = False
+                        self._save_breakpoints()
+                    timeout_s = bp.get("timeout_s", 0)
+                    if timeout_s > 0:
+                        fid = flow.id
+                        import asyncio
+                        asyncio.get_event_loop().call_later(timeout_s, lambda: self._auto_resume(fid))
+                    self._broadcast({"type": "breakpoints", "data": self.list_breakpoints()})
+                    break
         self._record(flow)
 
     def error(self, flow: http.HTTPFlow) -> None:
+        self.intercepted_flows.pop(flow.id, None)
         self._record(flow)
+
+    def _auto_resume(self, flow_id: str) -> None:
+        flow = self.intercepted_flows.pop(flow_id, None)
+        if flow and flow.intercepted:
+            flow.resume()
+            self._broadcast({"type": "flow", "data": _flow_summary(flow)})
 
     def _record(self, flow: http.HTTPFlow) -> None:
         if flow not in self.flows:
@@ -472,27 +724,97 @@ class DashboardAddon:
 
     # --- mock rules ---
     def list_mocks(self) -> List[Dict[str, Any]]:
-        return list(self.mocks.values())
+        return sorted(self.mocks.values(), key=lambda r: r.get("order", 0))
+
+    def list_groups(self) -> List[Dict[str, Any]]:
+        return sorted(self.groups.values(), key=lambda g: g.get("order", 0))
 
     def upsert_mock(self, data: Dict[str, Any]) -> Dict[str, Any]:
         existing = self.mocks.get(str(data.get("id") or ""), {})
         rule = _normalize_mock(data, existing.get("hits", 0))
         self.mocks[rule["id"]] = rule
         self._save_mocks()
-        self._broadcast({"type": "mocks", "data": self.list_mocks()})
+        self._broadcast_mocks()
         return rule
 
     def delete_mock(self, mock_id: str) -> None:
         self.mocks.pop(mock_id, None)
         self._save_mocks()
-        self._broadcast({"type": "mocks", "data": self.list_mocks()})
+        self._broadcast_mocks()
+
+    def upsert_group(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        existing = self.groups.get(str(data.get("id") or ""), {})
+        group = _normalize_group({**existing, **data})
+        self.groups[group["id"]] = group
+        self._save_mocks()
+        self._broadcast_mocks()
+        return group
+
+    def delete_group(self, group_id: str) -> None:
+        self.groups.pop(group_id, None)
+        for rule in self.mocks.values():
+            if rule.get("group_id") == group_id:
+                rule["group_id"] = None
+        self._save_mocks()
+        self._broadcast_mocks()
+
+    def _broadcast_mocks(self) -> None:
+        self._broadcast({"type": "mocks", "data": {
+            "rules": self.list_mocks(),
+            "groups": self.list_groups(),
+        }})
+
+    # --- breakpoint rules ---
+    def list_breakpoints(self) -> List[Dict[str, Any]]:
+        return list(self.breakpoints.values())
+
+    def upsert_breakpoint(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        existing = self.breakpoints.get(str(data.get("id") or ""), {})
+        bp = _normalize_breakpoint({**existing, **data})
+        self.breakpoints[bp["id"]] = bp
+        self._save_breakpoints()
+        self._broadcast({"type": "breakpoints", "data": self.list_breakpoints()})
+        return bp
+
+    def delete_breakpoint(self, bp_id: str) -> None:
+        self.breakpoints.pop(bp_id, None)
+        self._save_breakpoints()
+        self._broadcast({"type": "breakpoints", "data": self.list_breakpoints()})
+
+    def _load_breakpoints(self) -> None:
+        try:
+            with open(BREAKPOINT_FILE, "r", encoding="utf-8") as fh:
+                for bp in json.load(fh):
+                    norm = _normalize_breakpoint(bp)
+                    self.breakpoints[norm["id"]] = norm
+        except FileNotFoundError:
+            pass
+        except Exception as exc:
+            log.warning(f"[dashboard] could not load breakpoints: {exc}")
+
+    def _save_breakpoints(self) -> None:
+        try:
+            with open(BREAKPOINT_FILE, "w", encoding="utf-8") as fh:
+                json.dump(self.list_breakpoints(), fh, indent=2)
+        except Exception as exc:
+            log.warning(f"[dashboard] could not save breakpoints: {exc}")
 
     def _load_mocks(self) -> None:
         try:
             with open(MOCK_FILE, "r", encoding="utf-8") as fh:
-                for rule in json.load(fh):
-                    norm = _normalize_mock(rule, rule.get("hits", 0))
-                    self.mocks[norm["id"]] = norm
+                raw = json.load(fh)
+            # Support both old format (plain array) and new format (object with version key)
+            if isinstance(raw, list):
+                rules, groups = raw, []
+            else:
+                rules = raw.get("rules", [])
+                groups = raw.get("groups", [])
+            for g in groups:
+                norm = _normalize_group(g)
+                self.groups[norm["id"]] = norm
+            for rule in rules:
+                norm = _normalize_mock(rule, rule.get("hits", 0))
+                self.mocks[norm["id"]] = norm
         except FileNotFoundError:
             pass
         except Exception as exc:
@@ -501,7 +823,11 @@ class DashboardAddon:
     def _save_mocks(self) -> None:
         try:
             with open(MOCK_FILE, "w", encoding="utf-8") as fh:
-                json.dump(self.list_mocks(), fh, indent=2)
+                json.dump({
+                    "version": 2,
+                    "groups": self.list_groups(),
+                    "rules": self.list_mocks(),
+                }, fh, indent=2)
         except Exception as exc:
             log.warning(f"[dashboard] could not save mocks: {exc}")
 

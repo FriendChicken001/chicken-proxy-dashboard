@@ -10,6 +10,7 @@ import FlowTable from "@/components/FlowTable";
 import FlowDetailDrawer from "@/components/FlowDetail";
 import ConnectModal from "@/components/ConnectModal";
 import MockModal from "@/components/MockModal";
+import BreakpointModal from "@/components/BreakpointModal";
 import ContextMenu from "@/components/ContextMenu";
 import DiffModal from "@/components/DiffModal";
 import type { MockRule } from "@/lib/types";
@@ -19,13 +20,15 @@ import { draftFromDetail, draftFromSummary, toCurl } from "@/lib/mockDraft";
 type Filter = "all" | "2xx" | "errors" | "mocked" | "http";
 
 export default function Page() {
-  const { flows, stats, mocks, conn, paused, setPaused, reload, clear } =
+  const { flows, stats, mocks, groups, breakpoints, conn, paused, setPaused, reload, clear } =
     useDashboard();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [selected, setSelected] = useState<FlowSummary | null>(null);
   const [showConnect, setShowConnect] = useState(false);
   const [mockOpen, setMockOpen] = useState(false);
+  const [bpOpen, setBpOpen] = useState(false);
+  const [bpDraft, setBpDraft] = useState<{ urlContains: string; method: string } | null>(null);
   const [mockDraft, setMockDraft] = useState<Partial<MockRule> | null>(null);
   const [connection, setConnection] = useState<Connection | null>(null);
   const [portInput, setPortInput] = useState<string>("");
@@ -180,6 +183,12 @@ export default function Page() {
           🐔 Mocks{mocks.length ? ` (${mocks.length})` : ""}
         </button>
         <button
+          className={`bg-[var(--panel-2)] border rounded-[7px] px-3 py-[6px] text-xs cursor-pointer transition-colors ${breakpoints.length > 0 ? "text-[var(--amber)] border-[color-mix(in_srgb,var(--amber)_40%,var(--border))] hover:bg-[color-mix(in_srgb,var(--amber)_6%,transparent)]" : "text-[var(--text)] border-[var(--border)] hover:bg-[#232c3d]"}`}
+          onClick={() => setBpOpen(true)}
+        >
+          ⏸ Breakpoints{breakpoints.length ? ` (${breakpoints.length})` : ""}
+        </button>
+        <button
           className="bg-[var(--panel-2)] text-[var(--accent)] border border-[var(--accent)] rounded-[7px] px-3 py-[6px] text-xs cursor-pointer hover:bg-[#1c2740] transition-colors"
           onClick={() => setShowConnect(true)}
         >
@@ -286,8 +295,22 @@ export default function Page() {
       {selected && (
         <FlowDetailDrawer
           flowId={selected.id}
+          isIntercepted={selected.intercepted ?? false}
+          breakpoints={breakpoints}
           onClose={() => setSelected(null)}
           onMock={(draft) => openMocks(draft)}
+          onBreakpoint={(urlContains, method) => {
+            setBpDraft({ urlContains, method });
+            setBpOpen(true);
+          }}
+        />
+      )}
+
+      {bpOpen && (
+        <BreakpointModal
+          breakpoints={breakpoints}
+          initialDraft={bpDraft}
+          onClose={() => { setBpOpen(false); setBpDraft(null); }}
         />
       )}
 
@@ -296,6 +319,7 @@ export default function Page() {
       {mockOpen && (
         <MockModal
           mocks={mocks}
+          groups={groups}
           initialDraft={mockDraft}
           onClose={() => {
             setMockOpen(false);
@@ -321,6 +345,13 @@ export default function Page() {
             {
               label: "🐔 Mock this response",
               onClick: () => mockFromFlow(menu.flow),
+            },
+            {
+              label: "⏸ Add breakpoint",
+              onClick: () => {
+                setBpDraft({ urlContains: menu.flow.host + menu.flow.path, method: menu.flow.method });
+                setBpOpen(true);
+              },
             },
             { label: "🔍 Open details", onClick: () => setSelected(menu.flow) },
             { separator: true, label: "", onClick: () => {} },

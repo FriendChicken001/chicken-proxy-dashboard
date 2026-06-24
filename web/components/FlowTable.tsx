@@ -78,6 +78,8 @@ export default function FlowTable({
             const isSelected = f.id === selectedId;
             const rowBg = isSelected
               ? "bg-[var(--panel-2)]"
+              : f.intercepted
+              ? "bg-[color-mix(in_srgb,var(--amber)_6%,transparent)] hover:bg-[color-mix(in_srgb,var(--amber)_10%,transparent)]"
               : isPinned
               ? "bg-[color-mix(in_srgb,var(--accent)_5%,transparent)]"
               : "hover:bg-[var(--panel)]";
@@ -100,7 +102,12 @@ export default function FlowTable({
                   </button>
                 </td>
                 <td className="px-[10px] py-[7px] align-middle">
-                  {f.mocked && (
+                  {f.intercepted && (
+                    <span className="inline-flex items-center text-[11px] px-1 text-[var(--amber)]" title={f.breakpoint_name ?? "intercepted"}>
+                      ⏸
+                    </span>
+                  )}
+                  {f.mocked && !f.intercepted && (
                     <span className="inline-flex items-center gap-1 text-[11px] px-1 mr-1" title={f.mock_name ?? "mocked"}>
                       🐔
                     </span>

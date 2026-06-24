@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { fetchFlows, fetchMocks, fetchStats, WS_URL } from "./api";
-import type { FlowSummary, MockRule, Stats } from "./types";
+import { fetchBreakpoints, fetchFlows, fetchMocks, fetchStats, WS_URL } from "./api";
+import type { BreakpointRule, FlowSummary, MockGroup, MockRule, Stats } from "./types";
 
 const MAX_ROWS = 5000;
 
@@ -12,6 +12,8 @@ export function useDashboard() {
   const [flows, setFlows] = useState<FlowSummary[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [mocks, setMocks] = useState<MockRule[]>([]);
+  const [groups, setGroups] = useState<MockGroup[]>([]);
+  const [breakpoints, setBreakpoints] = useState<BreakpointRule[]>([]);
   const [conn, setConn] = useState<ConnState>("connecting");
   const [paused, setPaused] = useState(false);
   const pausedRef = useRef(paused);
@@ -30,14 +32,17 @@ export function useDashboard() {
 
   const reload = useCallback(async () => {
     try {
-      const [f, s, m] = await Promise.all([
+      const [f, s, mocksData, bps] = await Promise.all([
         fetchFlows(),
         fetchStats(),
         fetchMocks(),
+        fetchBreakpoints(),
       ]);
       setFlows(f);
       setStats(s);
-      setMocks(m);
+      setMocks(mocksData.rules);
+      setGroups(mocksData.groups);
+      setBreakpoints(bps);
     } catch {
       /* server may be down; ws lifecycle handles state */
     }
@@ -71,7 +76,18 @@ export function useDashboard() {
           if (msg.type === "flow") upsert(msg.data as FlowSummary);
           else if (msg.type === "stats" && !pausedRef.current)
             setStats(msg.data as Stats);
-          else if (msg.type === "mocks") setMocks(msg.data as MockRule[]);
+          else if (msg.type === "breakpoints")
+            setBreakpoints(msg.data as BreakpointRule[]);
+          else if (msg.type === "mocks") {
+            // Handle both old format (plain array) and new format ({ rules, groups })
+            if (Array.isArray(msg.data)) {
+              setMocks(msg.data as MockRule[]);
+            } else {
+              const data = msg.data as { rules: MockRule[]; groups: MockGroup[] };
+              setMocks(data.rules ?? []);
+              setGroups(data.groups ?? []);
+            }
+          }
         } catch {
           /* ignore malformed frame */
         }
@@ -96,5 +112,5 @@ export function useDashboard() {
     setFlows([]);
   }, []);
 
-  return { flows, stats, mocks, conn, paused, setPaused, reload, clear };
+  return { flows, stats, mocks, groups, breakpoints, conn, paused, setPaused, reload, clear };
 }

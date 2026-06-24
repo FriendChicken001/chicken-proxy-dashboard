@@ -17,6 +17,29 @@ export interface FlowSummary {
   completed: boolean;
   mocked: boolean;
   mock_name: string | null;
+  intercepted: boolean;
+  breakpoint_name: string | null;
+  breakpoint_phase: "request" | "response" | null;
+}
+
+export interface BreakpointRule {
+  id: string;
+  enabled: boolean;
+  name: string;
+  method: string;
+  url_contains: string;
+  phase: "request" | "response";
+  func: string; // Python "should_break(flow) -> bool"; empty = always break on match
+  hits: number;
+  timeout_s: number;  // 0 = disabled; auto-resume after N seconds
+  max_hits: number;   // 0 = unlimited; auto-disable after N hits
+}
+
+export interface MockGroup {
+  id: string;
+  name: string;
+  order: number;
+  collapsed: boolean;
 }
 
 export interface MockRule {
@@ -31,6 +54,8 @@ export interface MockRule {
   delay_ms: number;
   func: string; // Python function body; non-empty = dynamic mode
   hits: number;
+  group_id?: string | null;
+  order?: number;
 }
 
 export interface MessageBody {
