@@ -137,6 +137,14 @@ export async function editResumeFlow(
   });
 }
 
+export async function startProxy(): Promise<void> {
+  await fetch("/api/proxy/start", { method: "POST" });
+}
+
+export async function stopProxy(): Promise<void> {
+  await fetch("/api/proxy/stop", { method: "POST" });
+}
+
 export async function reorderMocks(
   items: Array<{ id: string; group_id?: string | null; order: number }>
 ): Promise<void> {

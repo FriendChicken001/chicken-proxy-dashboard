@@ -56,17 +56,20 @@ export function useDashboard() {
     let ws: WebSocket | null = null;
     let retry: ReturnType<typeof setTimeout> | null = null;
     let closed = false;
+    let everFailed = false;
 
     const connect = () => {
-      setConn("connecting");
+      if (!everFailed) setConn("connecting");
       try {
         ws = new WebSocket(WS_URL);
       } catch {
+        everFailed = true;
         setConn("offline");
         retry = setTimeout(connect, 2000);
         return;
       }
       ws.onopen = () => {
+        everFailed = false;
         setConn("live");
         reload();
       };
@@ -94,6 +97,7 @@ export function useDashboard() {
       };
       ws.onclose = () => {
         if (closed) return;
+        everFailed = true;
         setConn("offline");
         retry = setTimeout(connect, 2000);
       };

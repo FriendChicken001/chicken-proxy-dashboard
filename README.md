@@ -32,11 +32,14 @@ interception.
 
 ## Prerequisites
 
-| Tool | Version | Install |
-|------|---------|---------|
-| [mitmproxy](https://mitmproxy.org) | ≥ 10 | `brew install mitmproxy` |
-| [Node.js](https://nodejs.org) | ≥ 18 | `brew install node` |
-| npm | ≥ 9 | bundled with Node |
+| Tool | Purpose | brew | alternative |
+|------|---------|------|-------------|
+| [mitmproxy](https://mitmproxy.org) ≥ 10 | proxy engine | `brew install mitmproxy` | `pip3 install mitmproxy` · [mitmproxy.org](https://mitmproxy.org) |
+| [Node.js](https://nodejs.org) ≥ 18 | dashboard frontend | `brew install node` | [nvm](https://github.com/nvm-sh/nvm) · [nodejs.org](https://nodejs.org) |
+| npm ≥ 9 | package manager | bundled with Node | bundled with Node |
+| Xcode CLT | build menu bar app | `xcode-select --install` | install [Xcode](https://apps.apple.com/app/xcode/id497799835) from App Store |
+
+> `install.sh` checks all of these and prints exactly what's missing with install instructions.
 
 ---
 
@@ -47,12 +50,14 @@ interception.
 git clone https://github.com/your-org/chicken-proxy-dashboard.git
 cd chicken-proxy-dashboard
 
-# 2. Install dashboard dependencies
-cd web && npm install && cd ..
-
-# 3. (Optional) Generate Start/Stop .app shortcuts on your Desktop
+# 2. Run the setup script
 bash install.sh
 ```
+
+`install.sh` will:
+- Check every dependency and show what's missing (with install instructions)
+- Install npm packages automatically if needed
+- Compile and place **🐔 ChickenProxy Bar.app** on your Desktop
 
 No Python packages to install — the addon only uses libraries bundled with mitmproxy.
 
@@ -68,12 +73,19 @@ No Python packages to install — the addon only uses libraries bundled with mit
 
 Starts both mitmproxy and the Next.js dashboard together. Press **Ctrl-C** to stop both.
 
-### Option B — background (no terminal)
+### Option B — menu bar app (no terminal)
 
-After running `install.sh`, two app shortcuts appear on your Desktop:
+After running `install.sh`, **🐔 ChickenProxy Bar.app** appears on your Desktop.
 
-- **🐔 Start ChickenProxy.app** — starts both services in the background
-- **🛑 Stop ChickenProxy.app** — stops them
+Double-click it once — a 🐔 icon appears in the macOS menu bar. Click it to:
+
+- **Start / Stop** ChickenProxy
+- **Open Dashboard** — opens a native macOS window (no browser needed)
+- **Quit** — removes the menu bar icon
+
+The icon changes to `🐔▶` while the proxy is running and polls status every 3 seconds.
+
+The dashboard window is a native WKWebView — no browser chrome, no tabs. If the proxy is still starting up, a loading screen appears and retries automatically until the server is ready. Closing the window (red ✕) hides it; reopening via the menu bar brings it back instantly.
 
 Logs are written to `/tmp/chickenproxy.log`:
 

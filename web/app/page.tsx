@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useDashboard } from "@/lib/useDashboard";
-import { clearFlows, fetchConnection } from "@/lib/api";
+import { clearFlows, fetchConnection, startProxy, stopProxy } from "@/lib/api";
 import type { Connection, FlowSummary } from "@/lib/types";
 import StatsBar from "@/components/StatsBar";
 import Charts from "@/components/Charts";
@@ -39,6 +39,7 @@ export default function Page() {
   const [bodySearch, setBodySearch] = useState(false);
   const [bodyCache, setBodyCache] = useState<Record<string, string>>({});
   const [bodyFetching, setBodyFetching] = useState(false);
+  const [proxyBusy, setProxyBusy] = useState(false);
 
   useEffect(() => {
     fetchConnection()
@@ -133,6 +134,16 @@ export default function Page() {
     setSelected(null);
   };
 
+  const onToggleProxy = async () => {
+    setProxyBusy(true);
+    try {
+      if (conn === "live") await stopProxy();
+      else await startProxy();
+    } finally {
+      setProxyBusy(false);
+    }
+  };
+
   const ledColor =
     conn === "live" ? "bg-[var(--green)] shadow-[0_0_8px_var(--green)]" :
     conn === "connecting" ? "bg-[var(--amber)]" :
@@ -174,6 +185,23 @@ export default function Page() {
             </>
           )}
         </div>
+
+        <button
+          className={`inline-flex items-center gap-[6px] px-3 py-[5px] rounded-full border text-xs font-medium cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+            conn === "live"
+              ? "bg-[color-mix(in_srgb,var(--red)_10%,transparent)] border-[color-mix(in_srgb,var(--red)_40%,var(--border))] text-[var(--red)] hover:bg-[color-mix(in_srgb,var(--red)_18%,transparent)]"
+              : "bg-[color-mix(in_srgb,var(--green)_10%,transparent)] border-[color-mix(in_srgb,var(--green)_40%,var(--border))] text-[var(--green)] hover:bg-[color-mix(in_srgb,var(--green)_18%,transparent)]"
+          }`}
+          onClick={onToggleProxy}
+          disabled={proxyBusy || conn === "connecting"}
+          title={conn === "live" ? "Stop proxy" : "Start proxy"}
+        >
+          {proxyBusy
+            ? "…"
+            : conn === "live"
+            ? "■ Stop"
+            : "▶ Start"}
+        </button>
 
         <div className="flex-1" />
         <button
