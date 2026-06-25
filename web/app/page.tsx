@@ -39,7 +39,7 @@ export default function Page() {
   const [bodySearch, setBodySearch] = useState(false);
   const [bodyCache, setBodyCache] = useState<Record<string, string>>({});
   const [bodyFetching, setBodyFetching] = useState(false);
-  const [proxyBusy, setProxyBusy] = useState(false);
+  const [proxyStarting, setProxyStarting] = useState(false);
 
   useEffect(() => {
     fetchConnection()
@@ -134,13 +134,16 @@ export default function Page() {
     setSelected(null);
   };
 
+  useEffect(() => {
+    if (conn === "live") setProxyStarting(false);
+  }, [conn]);
+
   const onToggleProxy = async () => {
-    setProxyBusy(true);
-    try {
-      if (conn === "live") await stopProxy();
-      else await startProxy();
-    } finally {
-      setProxyBusy(false);
+    if (conn === "live") {
+      await stopProxy();
+    } else {
+      setProxyStarting(true);
+      await startProxy();
     }
   };
 
@@ -190,17 +193,20 @@ export default function Page() {
           className={`inline-flex items-center gap-[6px] px-3 py-[5px] rounded-full border text-xs font-medium cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
             conn === "live"
               ? "bg-[color-mix(in_srgb,var(--red)_10%,transparent)] border-[color-mix(in_srgb,var(--red)_40%,var(--border))] text-[var(--red)] hover:bg-[color-mix(in_srgb,var(--red)_18%,transparent)]"
+              : proxyStarting
+              ? "bg-[color-mix(in_srgb,var(--amber)_10%,transparent)] border-[color-mix(in_srgb,var(--amber)_40%,var(--border))] text-[var(--amber)]"
               : "bg-[color-mix(in_srgb,var(--green)_10%,transparent)] border-[color-mix(in_srgb,var(--green)_40%,var(--border))] text-[var(--green)] hover:bg-[color-mix(in_srgb,var(--green)_18%,transparent)]"
           }`}
           onClick={onToggleProxy}
-          disabled={proxyBusy || conn === "connecting"}
+          disabled={proxyStarting}
           title={conn === "live" ? "Stop proxy" : "Start proxy"}
         >
-          {proxyBusy
-            ? "…"
-            : conn === "live"
-            ? "■ Stop"
-            : "▶ Start"}
+          {proxyStarting ? (
+            <>
+              <span style={{ width: 10, height: 10, borderRadius: "50%", border: "1.5px solid currentColor", borderTopColor: "transparent", display: "inline-block", animation: "spin 0.7s linear infinite", flexShrink: 0 }} />
+              Starting…
+            </>
+          ) : conn === "live" ? "■ Stop" : "▶ Start"}
         </button>
 
         <div className="flex-1" />

@@ -161,6 +161,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         menu.addItem(.separator())
 
+        let copyItem = NSMenuItem(title: "Copy Proxy Address", action: #selector(copyProxyAddress), keyEquivalent: "c")
+        copyItem.target = self
+        menu.addItem(copyItem)
+
+        let logsItem = NSMenuItem(title: "Open Logs", action: #selector(openLogs), keyEquivalent: "l")
+        logsItem.target = self
+        menu.addItem(logsItem)
+
+        menu.addItem(.separator())
+
         let quitItem = NSMenuItem(title: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         menu.addItem(quitItem)
 
@@ -200,6 +210,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in self?.refresh() }
         }
+    }
+
+    @objc func copyProxyAddress() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString("127.0.0.1:8888", forType: .string)
+    }
+
+    @objc func openLogs() {
+        let script = """
+        tell application "Terminal"
+            activate
+            do script "tail -f /tmp/chickenproxy.log"
+        end tell
+        """
+        var error: NSDictionary?
+        NSAppleScript(source: script)?.executeAndReturnError(&error)
     }
 
     @objc func openDashboard() {

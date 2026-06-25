@@ -114,10 +114,6 @@ echo \$! >> "\$PID_FILE"
 cd "\$DIR/web" && "\$NPM_BIN" run dev >> "\$LOG_FILE" 2>&1 &
 echo \$! >> "\$PID_FILE"
 
-if [[ "\$*" != *--no-open* ]]; then
-  sleep 4
-  open "http://localhost:4444"
-fi
 SCRIPT
 
 cat > "$DIR/stop.sh" << SCRIPT

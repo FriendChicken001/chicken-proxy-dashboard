@@ -5,7 +5,7 @@ import { NextResponse } from "next/server";
 const projectDir = path.resolve(process.cwd(), "..");
 
 export async function POST() {
-  const child = spawn("bash", [path.join(projectDir, "start.sh"), "--no-open"], {
+  const child = spawn("bash", [path.join(projectDir, "start.sh")], {
     detached: true,
     stdio: "ignore",
   });
