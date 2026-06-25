@@ -57,10 +57,14 @@ web/
     format.ts         # statusClass, formatSize, etc.
     mockDraft.ts      # draftFromDetail, draftFromSummary, toCurl
 
+menubar/
+  ChickenProxyBar.swift  # native macOS menubar app (Swift) — wraps dashboard in WKWebView
+  make_icon.swift        # generates .icns from emoji
+
 dev.sh              # start both services (terminal)
 start.sh            # start both services (background, no terminal)
 stop.sh             # stop background services
-install.sh          # generate Start/Stop .app for current machine
+install.sh          # compile menubar app + generate 🐔 ChickenProxy Bar.app on Desktop
 ```
 
 ## Tech stack
@@ -69,6 +73,7 @@ install.sh          # generate Start/Stop .app for current machine
 - Dark theme variables: `--bg --bg-2 --panel --panel-2 --border --text --muted --faint --accent --green --amber --red --purple --mono`
 - `color-mix(in srgb, ...)` for tinted backgrounds
 - WebSocket on `ws://localhost:8081/ws` for live flow streaming
+- Native macOS wrapper: Swift menubar app (`ChickenProxyBar.swift`) embeds the dashboard in WKWebView, no browser needed
 
 ## Key patterns
 - All state lives in `page.tsx` — lifted up
@@ -77,6 +82,13 @@ install.sh          # generate Start/Stop .app for current machine
 - Body search: lazy fetch per flow, cached in `bodyCache: Record<string,string>`
 - Diff: pure LCS implementation in DiffModal (no external lib)
 - Mock draft prefill: right-click flow → `draftFromDetail()` or `draftFromSummary()`
+
+## Menubar app behaviour
+- Icon is `🐔💤` when proxy is stopped, animates through `runFrames` when running
+- Single-instance enforced via `NSRunningApplication` check on launch — duplicate instances quit immediately
+- Dashboard opens in a native WKWebView window (no browser); closing hides it, reopening restores it
+- Polls proxy status every 3 s via PID file at `/tmp/chickenproxy.pid`
+- After editing `ChickenProxyBar.swift`, run `bash install.sh` to recompile and rebuild the `.app` bundle on Desktop
 
 ## Design conventions
 - No comments unless the WHY is non-obvious
