@@ -135,9 +135,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var statusMenuItem: NSMenuItem!
     var toggleMenuItem: NSMenuItem!
     var timer: Timer?
+    var animTimer: Timer?
+    var frameIndex = 0
+    var wasRunning = false
+    let runFrames = ["🐔", "🐓", "🐔", "🐤", "🍗", "🐤", "🐔", "🥚"]
     var dashboardWC: DashboardWindowController?
 
     func applicationDidFinishLaunching(_: Notification) {
+        let others = NSRunningApplication.runningApplications(withBundleIdentifier: "com.chickenproxy.menubar")
+            .filter { $0 != NSRunningApplication.current }
+        if !others.isEmpty {
+            NSApp.terminate(nil)
+            return
+        }
+
         NSApp.setActivationPolicy(.accessory)
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -185,16 +196,38 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func refresh() {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            if isRunning() {
+            let running = isRunning()
+            if running {
                 self.statusMenuItem.title = "● Running"
                 self.toggleMenuItem.title = "Stop ChickenProxy"
-                self.statusItem.button?.title = "🐔▶"
+                if !self.wasRunning { self.startAnimation() }
             } else {
                 self.statusMenuItem.title = "○ Stopped"
                 self.toggleMenuItem.title = "Start ChickenProxy"
-                self.statusItem.button?.title = "🐔"
+                if self.wasRunning {
+                    self.stopAnimation()
+                } else if !self.wasRunning {
+                    self.statusItem.button?.title = "🐔💤"
+                }
             }
+            self.wasRunning = running
         }
+    }
+
+    func startAnimation() {
+        frameIndex = 0
+        animTimer?.invalidate()
+        animTimer = Timer.scheduledTimer(withTimeInterval: 0.35, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            self.frameIndex = (self.frameIndex + 1) % self.runFrames.count
+            self.statusItem.button?.title = self.runFrames[self.frameIndex]
+        }
+    }
+
+    func stopAnimation() {
+        animTimer?.invalidate()
+        animTimer = nil
+        statusItem.button?.title = "🐔💤"
     }
 
     @objc func toggle() {
@@ -203,11 +236,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.refresh() }
         } else {
             runScript("start.sh")
-            DispatchQueue.main.async { [weak self] in
-                self?.statusMenuItem.title = "◌ Starting…"
-                self?.toggleMenuItem.title = "Stop ChickenProxy"
-                self?.statusItem.button?.title = "🐔◌"
-            }
             DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in self?.refresh() }
         }
     }

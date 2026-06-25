@@ -12,6 +12,12 @@ interception.
         mitm_dashboard.py  (Tornado server on :8081, REST + WebSocket)
                │
         Next.js app  (http://localhost:4444)
+               │
+   ┌───────────────────────────┐
+   │  🐔 ChickenProxy Bar.app  │  ← native macOS app (Swift)
+   │   menu bar icon + controls│
+   │   WKWebView window        │  ← wraps the dashboard (no browser needed)
+   └───────────────────────────┘
 ```
 
 ## Features
