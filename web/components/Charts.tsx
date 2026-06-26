@@ -108,7 +108,7 @@ export default function Charts({
         ) : hosts.length === 0 ? (
           <div className="text-[var(--faint)] text-xs py-2">No hosts match &ldquo;{hostSearch}&rdquo;</div>
         ) : (
-          <ol className="list-none m-0 p-0 flex flex-col gap-[2px]">
+          <ol className="list-none m-0 p-0 flex flex-col gap-[2px] overflow-y-auto" style={{ maxHeight: 220 }}>
             {hosts.map((h, i) => {
               const isHighlighted = highlightedHost === h.host;
               const isDimmed = highlightedHost !== null && !isHighlighted;
