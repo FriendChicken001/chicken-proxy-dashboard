@@ -2,13 +2,14 @@ import Cocoa
 import Foundation
 import WebKit
 
-let kProjectDir  = "__PROJECT_DIR__"
-let kPidFile     = "/tmp/chickenproxy.pid"
+let kProjectDir   = "__PROJECT_DIR__"
+let kPidFile      = "/tmp/chickenproxy.pid"
+let kProxyPidFile = "/tmp/chickenproxy-proxy.pid"
 let kDashboardURL = "http://localhost:4444"
 
 func isRunning() -> Bool {
-    guard FileManager.default.fileExists(atPath: kPidFile),
-          let content = try? String(contentsOfFile: kPidFile, encoding: .utf8) else { return false }
+    guard FileManager.default.fileExists(atPath: kProxyPidFile),
+          let content = try? String(contentsOfFile: kProxyPidFile, encoding: .utf8) else { return false }
     return content.split(separator: "\n")
         .compactMap { Int32($0.trimmingCharacters(in: .whitespaces)) }
         .filter { $0 > 0 }

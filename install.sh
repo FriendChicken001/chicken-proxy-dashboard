@@ -116,7 +116,9 @@ lsof -ti :8888 | xargs kill -9 2>/dev/null || true
 echo "" > "\$LOG_FILE"
 
 "\$MITM_BIN" -s "\$DIR/addon/mitm_dashboard.py" -p 8888 >> "\$LOG_FILE" 2>&1 &
-echo \$! >> "\$PID_FILE"
+MITM_PID=\$!
+echo \$MITM_PID >> "\$PID_FILE"
+echo \$MITM_PID > "/tmp/chickenproxy-proxy.pid"
 
 MITMDUMP_BIN="\$MITM_BIN" "\$PYTHON_BIN" "\$DIR/serve.py" >> "\$LOG_FILE" 2>&1 &
 echo \$! >> "\$PID_FILE"
@@ -134,6 +136,7 @@ else
   pkill -f "mitm_dashboard.py" 2>/dev/null || true
   pkill -f "serve.py" 2>/dev/null || true
 fi
+rm -f "/tmp/chickenproxy-proxy.pid"
 SCRIPT
 
 chmod +x "$DIR/start.sh" "$DIR/stop.sh"

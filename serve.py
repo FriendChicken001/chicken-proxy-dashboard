@@ -8,6 +8,7 @@ import subprocess
 
 PORT = 4444
 PID_FILE = "/tmp/chickenproxy.pid"
+PROXY_PID_FILE = "/tmp/chickenproxy-proxy.pid"
 LOG_FILE = "/tmp/chickenproxy.log"
 
 _DIR = os.path.dirname(os.path.abspath(__file__))
@@ -45,6 +46,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     stderr=log,
                 )
                 with open(PID_FILE, "a") as f:
+                    f.write(f"{proc.pid}\n")
+                with open(PROXY_PID_FILE, "w") as f:
                     f.write(f"{proc.pid}\n")
             self._json({"ok": bool(mitm)})
         else:
