@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="150 150 700 700">
+
+  <!-- body (fluffy round yellow) -->
+  <ellipse cx="512" cy="580" rx="280" ry="250" fill="#FFD93D" stroke="#2A1C12" stroke-width="22"/>
+
+  <!-- left wing bump -->
+  <ellipse cx="268" cy="620" rx="100" ry="80" fill="#FFD93D" stroke="#2A1C12" stroke-width="18"/>
+  <!-- right wing bump -->
+  <ellipse cx="756" cy="620" rx="100" ry="80" fill="#FFD93D" stroke="#2A1C12" stroke-width="18"/>
+
+  <!-- head -->
+  <ellipse cx="512" cy="340" rx="200" ry="185" fill="#FFD93D" stroke="#2A1C12" stroke-width="22"/>
+
+  <!-- fluffy head tuft -->
+  <ellipse cx="475" cy="180" rx="48" ry="60" fill="#FFD93D" stroke="#2A1C12" stroke-width="18" transform="rotate(-15 475 180)"/>
+  <ellipse cx="512" cy="168" rx="44" ry="58" fill="#FFD93D" stroke="#2A1C12" stroke-width="18"/>
+  <ellipse cx="549" cy="180" rx="48" ry="60" fill="#FFD93D" stroke="#2A1C12" stroke-width="18" transform="rotate(15 549 180)"/>
+
+  <!-- eyes -->
+  <circle cx="432" cy="320" r="38" fill="#1a1f3a" stroke="#2A1C12" stroke-width="16"/>
+  <circle cx="592" cy="320" r="38" fill="#1a1f3a" stroke="#2A1C12" stroke-width="16"/>
+  <circle cx="444" cy="308" r="12" fill="white" opacity="0.5"/>
+  <circle cx="604" cy="308" r="12" fill="white" opacity="0.5"/>
+
+  <!-- tiny beak -->
+  <path d="M512 368 L534 392 L490 392 Z" fill="#F6A623" stroke="#2A1C12" stroke-width="14" stroke-linejoin="round"/>
+
+  <!-- pause bars on belly -->
+  <rect x="474" y="540" width="36" height="90" rx="10" fill="#E8A000" opacity="0.7"/>
+  <rect x="526" y="540" width="36" height="90" rx="10" fill="#E8A000" opacity="0.7"/>
+
+  <!-- little feet -->
+  <line x1="440" y1="820" x2="400" y2="860" stroke="#F6A623" stroke-width="18" stroke-linecap="round"/>
+  <line x1="440" y1="820" x2="440" y2="868" stroke="#F6A623" stroke-width="18" stroke-linecap="round"/>
+  <line x1="440" y1="820" x2="478" y2="858" stroke="#F6A623" stroke-width="18" stroke-linecap="round"/>
+  <line x1="584" y1="820" x2="544" y2="860" stroke="#F6A623" stroke-width="18" stroke-linecap="round"/>
+  <line x1="584" y1="820" x2="584" y2="868" stroke="#F6A623" stroke-width="18" stroke-linecap="round"/>
+  <line x1="584" y1="820" x2="622" y2="858" stroke="#F6A623" stroke-width="18" stroke-linecap="round"/>
+
+</svg>
