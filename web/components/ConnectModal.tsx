@@ -4,14 +4,15 @@ import { useEffect, useState } from "react";
 import { fetchConnection } from "@/lib/api";
 import type { Connection } from "@/lib/types";
 
-type Plat = "ios" | "android" | "device" | "flutter" | "web";
+type Plat = "ios" | "android" | "device" | "flutter" | "web" | "bypass";
 
 const PLATFORMS: { key: Plat; label: string; sub: string }[] = [
-  { key: "ios",     label: "iOS",      sub: "Simulator"   },
-  { key: "android", label: "Android",  sub: "Emulator"    },
-  { key: "device",  label: "Physical", sub: "Device"      },
-  { key: "flutter", label: "Flutter",  sub: "Dart / HTTP" },
-  { key: "web",     label: "Web",      sub: "Browser"     },
+  { key: "ios",     label: "iOS",       sub: "Simulator"   },
+  { key: "android", label: "Android",   sub: "Emulator"    },
+  { key: "device",  label: "Physical",  sub: "Device"      },
+  { key: "flutter", label: "Flutter",   sub: "Dart / HTTP" },
+  { key: "web",     label: "Web",       sub: "Browser"     },
+  { key: "bypass",  label: "SSL Bypass",sub: "Frida"       },
 ];
 
 export default function ConnectModal({ onClose, port }: { onClose: () => void; port: number }) {
@@ -56,7 +57,7 @@ export default function ConnectModal({ onClose, port }: { onClose: () => void; p
 
         {conn && (
           <>
-            <div className="grid gap-2 px-6 py-4 border-b border-[var(--border)] flex-shrink-0" style={{ gridTemplateColumns: "repeat(5, 1fr)" }}>
+            <div className="grid gap-2 px-6 py-4 border-b border-[var(--border)] flex-shrink-0" style={{ gridTemplateColumns: "repeat(6, 1fr)" }}>
               {PLATFORMS.map(({ key, label, sub }) => (
                 <button
                   key={key}
@@ -84,6 +85,7 @@ export default function ConnectModal({ onClose, port }: { onClose: () => void; p
               {plat === "device"  && <DeviceSteps  ip={conn.lan_ip} port={port} certUrl={conn.cert_url} />}
               {plat === "flutter" && <FlutterSteps host={host} port={port} />}
               {plat === "web"     && <WebSteps     port={port} certUrl={conn.cert_url_loopback ?? conn.cert_url} />}
+              {plat === "bypass"  && <BypassSteps  host={conn.lan_ip} port={port} />}
             </div>
           </>
         )}
@@ -232,6 +234,102 @@ function WebSteps({ port, certUrl }: { port: number; certUrl: string }) {
         Or launch Chrome with the proxy pre-set (no system-level change needed):
         <CodeBlock code={`open -a "Google Chrome" --args --proxy-server="127.0.0.1:${port}"`} />
       </Step>
+    </div>
+  );
+}
+
+function BypassSteps({ host, port }: { host: string; port: number }) {
+  const [tab, setTab] = useState<"android" | "ios">("android");
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex gap-1 border-b border-[var(--border)] mb-1">
+        {(["android", "ios"] as const).map(t => (
+          <span key={t} className={`px-4 py-[8px] cursor-pointer text-xs border-b-2 transition-colors capitalize ${tab === t ? "text-[var(--text)] border-[var(--accent)]" : "text-[var(--muted)] border-transparent"}`} onClick={() => setTab(t)}>{t === "android" ? "Android" : "iOS"}</span>
+        ))}
+      </div>
+
+      {tab === "android" && (
+        <>
+          <div className="text-[11px] text-[var(--amber)] bg-[color-mix(in_srgb,var(--amber)_8%,transparent)] border border-[color-mix(in_srgb,var(--amber)_25%,transparent)] rounded-[8px] px-3 py-2">
+            ⚠ ต้องการ <strong>rooted device</strong> หรือ <strong>repackage APK</strong> (own app) เท่านั้น
+          </div>
+          <Step n={1}>
+            ติดตั้ง <strong>Frida server</strong> บน Android (rooted):
+            <CodeBlock code={`# หา architecture ของเครื่อง
+adb shell getprop ro.product.cpu.abi
+
+# download frida-server จาก https://github.com/frida/frida/releases
+# เลือก frida-server-*-android-<arch>.xz
+
+adb push frida-server /data/local/tmp/
+adb shell chmod 755 /data/local/tmp/frida-server
+adb shell /data/local/tmp/frida-server &`} />
+          </Step>
+          <Step n={2}>
+            ติดตั้ง <strong>objection</strong> บน Mac:
+            <CodeBlock code={`pip3 install objection`} />
+          </Step>
+          <Step n={3}>
+            เปิด app ที่ต้องการ จากนั้น inject และ disable SSL pinning:
+            <CodeBlock code={`# หา package name
+adb shell pm list packages | grep <appname>
+
+# inject + bypass pinning ทันที
+objection --gadget <package.name> explore --startup-command "android sslpinning disable"`} />
+          </Step>
+          <Step n={4}>
+            ตั้ง proxy บน Android ให้ชี้มาที่ Mac:
+            <CodeBlock code={`adb shell settings put global http_proxy ${host}:${port}`} />
+          </Step>
+          <Step n={5}>
+            ⚡ <strong>ไม่มี root?</strong> สำหรับ app ตัวเองให้ใช้ <strong>Frida Gadget</strong> — repackage APK แล้ว inject gadget เข้าไป:
+            <CodeBlock code={`pip3 install frida-tools objection
+objection patchapk --source app.apk`} />
+            APK ที่ได้จะ bypass SSL pinning โดยไม่ต้อง root
+          </Step>
+        </>
+      )}
+
+      {tab === "ios" && (
+        <>
+          <div className="text-[11px] text-[var(--amber)] bg-[color-mix(in_srgb,var(--amber)_8%,transparent)] border border-[color-mix(in_srgb,var(--amber)_25%,transparent)] rounded-[8px] px-3 py-2">
+            ⚠ third-party app ต้องการ <strong>jailbroken device</strong> — app ตัวเองใช้ Simulator ได้โดยไม่ต้อง jailbreak
+          </div>
+          <Step n={1}>
+            <strong>iOS Simulator (app ตัวเอง)</strong> — disable pinning ใน code:
+            <CodeBlock code={`// Swift — ใน URLSessionDelegate
+func urlSession(_ session: URLSession,
+    didReceive challenge: URLAuthenticationChallenge,
+    completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+  #if DEBUG
+    completionHandler(.useCredential, URLCredential(trust: challenge.protectionSpace.serverTrust!))
+  #else
+    completionHandler(.performDefaultHandling, nil)
+  #endif
+}`} />
+          </Step>
+          <Step n={2}>
+            <strong>Jailbroken device</strong> — ติดตั้ง Frida ผ่าน Cydia/Sileo:
+            <CodeBlock code={`# เพิ่ม repo: https://build.frida.re
+# ติดตั้ง: Frida
+
+# จากนั้นบน Mac
+pip3 install frida-tools objection`} />
+          </Step>
+          <Step n={3}>
+            Inject และ bypass pinning:
+            <CodeBlock code={`# list apps
+frida-ps -Ua
+
+# bypass
+objection --gadget <BundleID> explore --startup-command "ios sslpinning disable"`} />
+          </Step>
+          <Step n={4}>
+            ตั้ง proxy บน iPhone: Settings → Wi-Fi → กดเน็ต → Configure Proxy → Manual<br />
+            Server <code>{host}</code> Port <code>{port}</code>
+          </Step>
+        </>
+      )}
     </div>
   );
 }
