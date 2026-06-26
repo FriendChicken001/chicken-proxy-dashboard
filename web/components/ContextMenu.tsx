@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
 
 export interface MenuItem {
-  label: string;
+  label: ReactNode;
   onClick: () => void;
   danger?: boolean;
   separator?: boolean;

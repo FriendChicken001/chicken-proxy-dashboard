@@ -222,7 +222,7 @@ export default function FlowDetailDrawer({
                 )}
                 {detail.mocked && (
                   <span className="inline-flex items-center gap-1 text-[11px] px-[7px] py-[1px] rounded-full bg-[#211b38] text-[var(--purple)] border border-[#382e5c] ml-2">
-                    🐔 {detail.mock_name}
+                    <img src="/chicken-icon.svg" width={13} height={13} alt="" style={{ display: "inline-block", verticalAlign: "middle" }} /> {detail.mock_name}
                   </span>
                 )}
                 {isIntercepted && (
@@ -255,7 +255,7 @@ export default function FlowDetailDrawer({
                 <button
                   className="bg-[var(--panel-2)] text-[var(--accent)] border border-[var(--accent)] rounded-[7px] px-3 py-[6px] text-xs cursor-pointer hover:bg-[#1c2740] transition-colors"
                   onClick={() => onMock(draftFromDetail(detail))}
-                >🐔 Mock this response</button>
+                ><img src="/chicken-icon.svg" width={14} height={14} alt="" style={{ display: "inline-block", verticalAlign: "middle", marginRight: 5 }} />Mock this response</button>
                 {!breakpoints.some(bp => bp.enabled && bp.url_contains && (detail.host + detail.path).includes(bp.url_contains)) && (
                   <button
                     className="bg-[var(--panel-2)] text-[var(--amber)] border border-[color-mix(in_srgb,var(--amber)_50%,var(--border))] rounded-[7px] px-3 py-[6px] text-xs cursor-pointer hover:bg-[color-mix(in_srgb,var(--amber)_8%,transparent)] transition-colors"
@@ -514,6 +514,44 @@ function prettyJson(text: string): string | null {
   }
 }
 
+type JsonTok = "key" | "string" | "number" | "boolean" | "null" | "punct" | "ws";
+const JSON_COLORS: Record<JsonTok, string> = {
+  key: "var(--accent)",
+  string: "var(--green)",
+  number: "var(--amber)",
+  boolean: "var(--purple)",
+  null: "var(--red)",
+  punct: "var(--muted)",
+  ws: "",
+};
+
+function highlightJson(text: string) {
+  const re = /("(?:[^"\\]|\\.)*")|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)|(\btrue\b|\bfalse\b)|(\bnull\b)|([{}\[\]:,])|([\s\S])/g;
+  const tokens: { type: JsonTok; value: string }[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    if (m[1] !== undefined) tokens.push({ type: "string", value: m[1] });
+    else if (m[2] !== undefined) tokens.push({ type: "number", value: m[2] });
+    else if (m[3] !== undefined) tokens.push({ type: "boolean", value: m[3] });
+    else if (m[4] !== undefined) tokens.push({ type: "null", value: m[4] });
+    else if (m[5] !== undefined) tokens.push({ type: "punct", value: m[5] });
+    else tokens.push({ type: "ws", value: m[0] });
+  }
+  for (let i = 0; i < tokens.length; i++) {
+    if (tokens[i].type === "string") {
+      let j = i + 1;
+      while (j < tokens.length && tokens[j].type === "ws") j++;
+      if (j < tokens.length && tokens[j].type === "punct" && tokens[j].value === ":") {
+        tokens[i] = { type: "key", value: tokens[i].value };
+      }
+    }
+  }
+  return tokens.map((tok, i) => {
+    const color = JSON_COLORS[tok.type];
+    return color ? <span key={i} style={{ color }}>{tok.value}</span> : tok.value;
+  });
+}
+
 function Body({ title, body }: { title: string; body: MessageBody | null }) {
   const [raw, setRaw] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -531,9 +569,10 @@ function Body({ title, body }: { title: string; body: MessageBody | null }) {
   const shown = pretty && !raw ? pretty : text;
 
   const copy = () => {
-    if (!text) return;
+    const toCopy = shown ?? text;
+    if (!toCopy) return;
     navigator.clipboard
-      ?.writeText(text)
+      ?.writeText(toCopy)
       .then(() => {
         setCopied(true);
         setTimeout(() => setCopied(false), 1200);
@@ -571,13 +610,15 @@ function Body({ title, body }: { title: string; body: MessageBody | null }) {
               className="bg-[var(--panel)] text-[var(--muted)] border border-[var(--border)] rounded-[6px] px-[9px] py-[3px] text-[11px] cursor-pointer hover:text-[var(--text)] hover:border-[var(--accent)] transition-colors normal-case tracking-normal"
               onClick={copy}
             >
-              {copied ? "✓ copied" : "⧉ Copy"}
+              {copied ? "✓ Copied" : pretty && !raw ? "⧉ Copy JSON" : "⧉ Copy"}
             </button>
           </span>
         )}
       </div>
       {body.is_text && shown !== null ? (
-        <pre className="bg-[var(--bg)] border border-[var(--border)] rounded-lg p-3 font-mono text-xs text-[#cdd6e6] whitespace-pre-wrap break-words max-h-[420px] overflow-auto m-0">{shown}</pre>
+        <pre className="bg-[var(--bg)] border border-[var(--border)] rounded-lg p-3 font-mono text-xs text-[#cdd6e6] whitespace-pre-wrap break-words max-h-[420px] overflow-auto m-0">
+          {pretty && !raw ? highlightJson(shown) : shown}
+        </pre>
       ) : (
         <div style={{ color: "#5b6577", fontSize: 12 }}>
           binary content ({bytes(body.size)}) — not shown

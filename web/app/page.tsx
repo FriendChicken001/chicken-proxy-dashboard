@@ -211,10 +211,10 @@ export default function Page() {
 
         <div className="flex-1" />
         <button
-          className="bg-[var(--panel-2)] text-[var(--text)] border border-[var(--border)] rounded-[7px] px-3 py-[6px] text-xs cursor-pointer hover:bg-[#232c3d] transition-colors"
+          className="inline-flex items-center gap-[5px] bg-[var(--panel-2)] text-[var(--text)] border border-[var(--border)] rounded-[7px] px-3 py-[6px] text-xs cursor-pointer hover:bg-[#232c3d] transition-colors"
           onClick={() => openMocks(null)}
         >
-          🐔 Mocks{mocks.length ? ` (${mocks.length})` : ""}
+          <img src="/chicken-icon.svg" width={14} height={14} alt="" />Mocks{mocks.length ? ` (${mocks.length})` : ""}
         </button>
         <button
           className={`bg-[var(--panel-2)] border rounded-[7px] px-3 py-[6px] text-xs cursor-pointer transition-colors ${breakpoints.length > 0 ? "text-[var(--amber)] border-[color-mix(in_srgb,var(--amber)_40%,var(--border))] hover:bg-[color-mix(in_srgb,var(--amber)_6%,transparent)]" : "text-[var(--text)] border-[var(--border)] hover:bg-[#232c3d]"}`}
@@ -377,7 +377,7 @@ export default function Page() {
           onClose={() => setMenu(null)}
           items={[
             {
-              label: "🐔 Mock this response",
+              label: <span className="inline-flex items-center gap-[6px]"><img src="/chicken-icon.svg" width={14} height={14} alt="" style={{ display: "inline-block", verticalAlign: "middle" }} />Mock this response</span>,
               onClick: () => mockFromFlow(menu.flow),
             },
             {

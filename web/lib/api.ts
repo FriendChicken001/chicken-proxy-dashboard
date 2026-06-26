@@ -142,7 +142,7 @@ export async function startProxy(): Promise<void> {
 }
 
 export async function stopProxy(): Promise<void> {
-  await fetch("/api/proxy/stop", { method: "POST" });
+  await fetch(`${API_BASE}/api/proxy/stop`, { method: "POST" });
 }
 
 export async function reorderMocks(

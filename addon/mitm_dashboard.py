@@ -40,6 +40,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import signal
 import socket
 import ssl
 import time
@@ -600,6 +601,12 @@ class ResendFlowHandler(_CorsHandler):
         self.finish(json.dumps({"status": status}))
 
 
+class StopProxyHandler(_CorsHandler):
+    async def post(self) -> None:
+        self.finish(json.dumps({"ok": True}))
+        tornado.ioloop.IOLoop.current().call_later(0.2, lambda: os.kill(os.getpid(), signal.SIGTERM))
+
+
 class FlowSocket(tornado.websocket.WebSocketHandler):
     def check_origin(self, origin: str) -> bool:
         return True
@@ -676,6 +683,7 @@ class DashboardAddon:
                 (r"/api/flows/([^/]+)/abort", AbortFlowHandler),
                 (r"/api/flows/([^/]+)/edit-resume", EditResumeFlowHandler),
                 (r"/api/flows/([^/]+)/resend", ResendFlowHandler),
+                (r"/api/proxy/stop", StopProxyHandler),
                 (r"/cert", CertHandler),
                 (r"/ws", FlowSocket),
             ],

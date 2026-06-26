@@ -463,7 +463,7 @@ export default function MockModal({
             <div ref={scrollRef} className="p-0 overflow-auto flex-1" onDragOver={dragRuleId ? handleScrollDragOver : undefined} onDragLeave={stopAutoScroll}>
               {allEmpty ? (
                 <div className="flex flex-col items-center justify-center py-[52px] px-6 gap-2 text-center">
-                  <div className="text-[36px] mb-1">🐔</div>
+                  <img src="/chicken-icon.svg" width={48} height={48} alt="" className="mb-1" />
                   <div className="text-[14px] font-medium text-[var(--text)]">No mock rules yet</div>
                   <div className="text-xs text-[var(--faint)] max-w-[340px] leading-[1.55]">Create one here, or right-click any captured request → Mock this response</div>
                 </div>

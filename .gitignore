@@ -4,12 +4,12 @@ __pycache__/
 *.pyo
 .venv/
 venv/
+bin/
 *.egg-info/
 
 # Node / Next.js
 web/node_modules/
 web/.next/
-web/out/
 web/.env*.local
 web/tsconfig.tsbuildinfo
 

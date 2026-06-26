@@ -40,32 +40,19 @@ echo ""
 echo "Checking dependencies..."
 echo ""
 
-NODE_BIN=$(check "node" node \
-  "brew install node" \
-  "nvm: https://github.com/nvm-sh/nvm" \
-  "official installer: https://nodejs.org")
-
-NPM_BIN=$(check "npm" npm \
-  "comes with Node.js (install node first)")
-
 MITM_BIN=$(check "mitmdump" mitmdump \
-  "brew install mitmproxy" \
-  "pip3 install mitmproxy" \
-  "official installer: https://mitmproxy.org")
+  "(will be installed automatically if missing)")
 
 SWIFT_BIN=$(check "swiftc" swiftc \
   "xcode-select --install  (Command Line Tools, ~500 MB)" \
   "App Store: install Xcode")
 
-check "python3" python3 \
-  "brew install python3" \
-  "official installer: https://python.org" > /dev/null
+PYTHON_BIN=$(check "python3" python3 \
+  "comes with Xcode Command Line Tools (xcode-select --install)")
 
 MISSING=0
-[ -z "$NODE_BIN" ] && MISSING=1
-[ -z "$NPM_BIN"  ] && MISSING=1
-[ -z "$MITM_BIN" ] && MISSING=1
-[ -z "$SWIFT_BIN" ] && MISSING=1
+[ -z "$SWIFT_BIN" ]  && MISSING=1
+[ -z "$PYTHON_BIN" ] && MISSING=1
 
 if [ "$MISSING" -eq 1 ]; then
   echo ""
@@ -73,28 +60,43 @@ if [ "$MISSING" -eq 1 ]; then
   exit 1
 fi
 
+# ── Auto-install mitmproxy if not found ───────────────────────────────────────
+
+if [ -z "$MITM_BIN" ]; then
+  if [ -z "$PYTHON_BIN" ]; then
+    echo "❌ python3 not found — needed to auto-install mitmproxy."
+    echo "   Install python3 or mitmproxy manually, then run install.sh again."
+    exit 1
+  fi
+
+  VENV_DIR="$DIR/venv"
+  VENV_MITM="$VENV_DIR/bin/mitmdump"
+
+  if [ -f "$VENV_MITM" ]; then
+    printf "  ✅  %-10s %s\n" "mitmdump" "(local venv)"
+    MITM_BIN="$VENV_MITM"
+  else
+    echo "📦 Installing mitmproxy into local venv (no brew needed)..."
+    "$PYTHON_BIN" -m venv "$VENV_DIR"
+    "$VENV_DIR/bin/pip" install mitmproxy --quiet
+    MITM_BIN="$VENV_MITM"
+    echo "   done — mitmproxy installed at $VENV_DIR"
+    echo ""
+  fi
+elif [ -f "$DIR/venv/bin/mitmdump" ]; then
+  MITM_BIN="$DIR/venv/bin/mitmdump"
+fi
+
 echo ""
 echo "All dependencies found."
 echo ""
 
-# ── npm install ───────────────────────────────────────────────────────────────
-
-if [ ! -d "$DIR/web/node_modules" ]; then
-  echo "📦 Installing npm packages..."
-  (cd "$DIR/web" && "$NPM_BIN" install --silent)
-  echo "   done"
-  echo ""
-fi
-
 # ── Generate start.sh / stop.sh ───────────────────────────────────────────────
-
-NODE_DIR="$(dirname "$NODE_BIN")"
 
 cat > "$DIR/start.sh" << SCRIPT
 #!/bin/bash
-NPM_BIN="$NPM_BIN"
 MITM_BIN="$MITM_BIN"
-export PATH="$NODE_DIR:\$PATH"
+PYTHON_BIN="$PYTHON_BIN"
 
 DIR="$DIR"
 PID_FILE="/tmp/chickenproxy.pid"
@@ -111,7 +113,7 @@ echo "" > "\$LOG_FILE"
 "\$MITM_BIN" -s "\$DIR/addon/mitm_dashboard.py" -p 8888 >> "\$LOG_FILE" 2>&1 &
 echo \$! >> "\$PID_FILE"
 
-cd "\$DIR/web" && "\$NPM_BIN" run dev >> "\$LOG_FILE" 2>&1 &
+"\$PYTHON_BIN" "\$DIR/serve.py" >> "\$LOG_FILE" 2>&1 &
 echo \$! >> "\$PID_FILE"
 
 SCRIPT
@@ -125,7 +127,7 @@ if [ -f "\$PID_FILE" ]; then
   rm -f "\$PID_FILE"
 else
   pkill -f "mitm_dashboard.py" 2>/dev/null || true
-  pkill -f "next dev" 2>/dev/null || true
+  pkill -f "serve.py" 2>/dev/null || true
 fi
 SCRIPT
 

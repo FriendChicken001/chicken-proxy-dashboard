@@ -109,7 +109,7 @@ export default function FlowTable({
                   )}
                   {f.mocked && !f.intercepted && (
                     <span className="inline-flex items-center gap-1 text-[11px] px-1 mr-1" title={f.mock_name ?? "mocked"}>
-                      🐔
+                      <img src="/chicken-icon.svg" width={14} height={14} alt="mocked" style={{ display: "inline-block", verticalAlign: "middle" }} />
                     </span>
                   )}
                 </td>
