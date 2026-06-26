@@ -1,4 +1,4 @@
-# ChickenProxy Dashboard
+# ProxyChicken
 
 A live web dashboard for [mitmproxy](https://mitmproxy.org). A mitmproxy **addon**
 captures every intercepted flow and serves it over HTTP + WebSocket. A
@@ -14,7 +14,7 @@ interception.
         Next.js app  (http://localhost:4444)
                │
    ┌───────────────────────────┐
-   │  🐔 ChickenProxy Bar.app  │  ← native macOS app (Swift)
+   │     ProxyChicken.app      │  ← native macOS app (Swift)
    │   menu bar icon + controls│
    │   WKWebView window        │  ← wraps the dashboard (no browser needed)
    └───────────────────────────┘
@@ -53,8 +53,8 @@ interception.
 
 ```bash
 # 1. Clone the repo
-git clone https://github.com/your-org/chicken-proxy-dashboard.git
-cd chicken-proxy-dashboard
+git clone https://github.com/your-org/proxychicken.git
+cd proxychicken
 
 # 2. Run the setup script
 bash install.sh
@@ -63,7 +63,7 @@ bash install.sh
 `install.sh` will:
 - Check every dependency and show what's missing (with install instructions)
 - Install npm packages automatically if needed
-- Compile and place **🐔 ChickenProxy Bar.app** on your Desktop
+- Compile and place **ProxyChicken.app** on your Desktop
 
 No Python packages to install — the addon only uses libraries bundled with mitmproxy.
 
@@ -81,15 +81,16 @@ Starts both mitmproxy and the Next.js dashboard together. Press **Ctrl-C** to st
 
 ### Option B — menu bar app (no terminal)
 
-After running `install.sh`, **🐔 ChickenProxy Bar.app** appears on your Desktop.
+After running `install.sh`, **ProxyChicken.app** appears on your Desktop.
 
-Double-click it once — a 🐔 icon appears in the macOS menu bar. Click it to:
+Double-click it once — a menu bar icon appears. Click it to:
 
-- **Start / Stop** ChickenProxy
+- **Start / Stop** ProxyChicken
 - **Open Dashboard** — opens a native macOS window (no browser needed)
+- **Copy Proxy Address** — copies `127.0.0.1:8888` to clipboard
 - **Quit** — removes the menu bar icon
 
-The icon changes to `🐔▶` while the proxy is running and polls status every 3 seconds.
+The icon switches between active and paused states as the proxy starts and stops, polling every 3 seconds.
 
 The dashboard window is a native WKWebView — no browser chrome, no tabs. If the proxy is still starting up, a loading screen appears and retries automatically until the server is ready. Closing the window (red ✕) hides it; reopening via the menu bar brings it back instantly.
 
