@@ -33,6 +33,7 @@ export default function Page() {
   const [connection, setConnection] = useState<Connection | null>(null);
   const [portInput, setPortInput] = useState<string>("");
   const [highlightedHost, setHighlightedHost] = useState<string | null>(null);
+  const [showCharts, setShowCharts] = useState(false);
   const [diffBase, setDiffBase] = useState<FlowSummary | null>(null);
   const [diffTarget, setDiffTarget] = useState<FlowSummary | null>(null);
   const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set());
@@ -247,86 +248,98 @@ export default function Page() {
         >
           ↻
         </button>
+        <button
+          className={`inline-flex items-center justify-center w-8 h-8 rounded-lg p-0 border text-base leading-none cursor-pointer transition-colors ${showCharts ? "bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] border-[color-mix(in_srgb,var(--accent)_40%,var(--border))] text-[var(--accent)]" : "bg-[var(--panel)] border-[var(--border)] text-[var(--muted)] hover:bg-[var(--panel-2)] hover:text-[var(--text)] hover:border-[var(--accent)]"}`}
+          onClick={() => setShowCharts(v => !v)}
+          title={showCharts ? "Hide charts" : "Show charts"}
+        >
+          📊
+        </button>
       </header>
 
       <StatsBar stats={stats} />
-      <Charts
-        stats={stats}
-        highlightedHost={highlightedHost}
-        onHighlight={setHighlightedHost}
-      />
 
-      <div className="flex items-center gap-[10px] px-5 pb-3 pt-[6px]">
-        <input
-          className="flex-1 max-w-[420px] bg-[var(--panel)] border border-[var(--border)] rounded-[7px] px-[11px] py-[7px] text-[var(--text)] text-[13px] outline-none focus:border-[var(--accent)]"
-          placeholder="Filter by host, path, or method…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
+      {showCharts && (
+        <Charts
+          stats={stats}
+          highlightedHost={highlightedHost}
+          onHighlight={setHighlightedHost}
         />
-        <button
-          className={`inline-flex items-center gap-[5px] px-[11px] py-[7px] rounded-[7px] text-[13px] cursor-pointer border whitespace-nowrap transition-colors ${
-            bodySearch
-              ? "text-[var(--accent)] border-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)]"
-              : "bg-[var(--panel)] border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)] hover:border-[var(--accent)]"
-          }`}
-          onClick={() => setBodySearch(v => !v)}
-          title="Search in request/response bodies"
-        >
-          {bodyFetching ? <span className="inline-block text-[11px]" style={{ animation: "spin .7s linear infinite" }}>↻</span> : null}
-          Body
-        </button>
+      )}
 
-        <div className="w-px h-5 bg-[var(--border)] flex-shrink-0" />
-
-        <div className="flex gap-[6px]">
-          {(
-            [
-              ["all", "All"],
-              ["2xx", "Success"],
-              ["errors", "Error"],
-              ["mocked", "Mock"],
-              ["http", "ClearText"],
-            ] as [Filter, string][]
-          ).map(([key, label]) => (
-            <span
-              key={key}
-              className={`text-[11px] px-[10px] py-[5px] rounded-full cursor-pointer border ${
-                filter === key
-                  ? "text-[var(--text)] border-[var(--accent)] bg-[var(--panel-2)]"
-                  : "border-[var(--border)] bg-[var(--panel)] text-[var(--muted)]"
+      <div className="flex flex-col flex-1 overflow-hidden">
+          <div className="flex items-center gap-[10px] px-5 pb-3 pt-[6px]">
+            <input
+              className="flex-1 max-w-[420px] bg-[var(--panel)] border border-[var(--border)] rounded-[7px] px-[11px] py-[7px] text-[var(--text)] text-[13px] outline-none focus:border-[var(--accent)]"
+              placeholder="Filter by host, path, or method…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+            <button
+              className={`inline-flex items-center gap-[5px] px-[11px] py-[7px] rounded-[7px] text-[13px] cursor-pointer border whitespace-nowrap transition-colors ${
+                bodySearch
+                  ? "text-[var(--accent)] border-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)]"
+                  : "bg-[var(--panel)] border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)] hover:border-[var(--accent)]"
               }`}
-              onClick={() => setFilter(key)}
+              onClick={() => setBodySearch(v => !v)}
+              title="Search in request/response bodies"
             >
-              {label}
-            </span>
-          ))}
-        </div>
-        <div className="flex-1" />
-        <span className="text-[var(--faint)] text-xs">
-          {visible.length} / {flows.length} flows
-          {paused ? " · paused" : ""}
-        </span>
-        <button
-          className="inline-flex items-center gap-[5px] bg-[var(--panel)] border border-[var(--border)] text-[var(--muted)] text-xs cursor-pointer px-[10px] py-[5px] rounded-[7px] whitespace-nowrap hover:text-[var(--red)] transition-colors"
-          onClick={onClear}
-          title="Clear all flows"
-        >
-          🗑 Clear
-        </button>
-      </div>
+              {bodyFetching ? <span className="inline-block text-[11px]" style={{ animation: "spin .7s linear infinite" }}>↻</span> : null}
+              Body
+            </button>
 
-      <FlowTable
-        flows={visible}
-        selectedId={selected?.id ?? null}
-        onSelect={setSelected}
-        onContext={(e, f) => {
-          e.preventDefault();
-          setMenu({ x: e.clientX, y: e.clientY, flow: f });
-        }}
-        pinnedIds={pinnedIds}
-        onPin={onPin}
-        diffBaseId={diffBase?.id ?? null}
-      />
+            <div className="w-px h-5 bg-[var(--border)] flex-shrink-0" />
+
+            <div className="flex gap-[6px]">
+              {(
+                [
+                  ["all", "All"],
+                  ["2xx", "Success"],
+                  ["errors", "Error"],
+                  ["mocked", "Mock"],
+                  ["http", "ClearText"],
+                ] as [Filter, string][]
+              ).map(([key, label]) => (
+                <span
+                  key={key}
+                  className={`text-[11px] px-[10px] py-[5px] rounded-full cursor-pointer border ${
+                    filter === key
+                      ? "text-[var(--text)] border-[var(--accent)] bg-[var(--panel-2)]"
+                      : "border-[var(--border)] bg-[var(--panel)] text-[var(--muted)]"
+                  }`}
+                  onClick={() => setFilter(key)}
+                >
+                  {label}
+                </span>
+              ))}
+            </div>
+            <div className="flex-1" />
+            <span className="text-[var(--faint)] text-xs">
+              {visible.length} / {flows.length} flows
+              {paused ? " · paused" : ""}
+            </span>
+            <button
+              className="inline-flex items-center gap-[5px] bg-[var(--panel)] border border-[var(--border)] text-[var(--muted)] text-xs cursor-pointer px-[10px] py-[5px] rounded-[7px] whitespace-nowrap hover:text-[var(--red)] transition-colors"
+              onClick={onClear}
+              title="Clear all flows"
+            >
+              🗑 Clear
+            </button>
+          </div>
+
+          <FlowTable
+            flows={visible}
+            selectedId={selected?.id ?? null}
+            onSelect={setSelected}
+            onContext={(e, f) => {
+              e.preventDefault();
+              setMenu({ x: e.clientX, y: e.clientY, flow: f });
+            }}
+            pinnedIds={pinnedIds}
+            onPin={onPin}
+            diffBaseId={diffBase?.id ?? null}
+          />
+      </div>
 
       {selected && (
         <FlowDetailDrawer
