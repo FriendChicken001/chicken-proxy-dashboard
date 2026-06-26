@@ -16,6 +16,9 @@ ADDON = os.path.join(_DIR, "addon", "mitm_dashboard.py")
 
 
 def _find_mitmdump() -> str:
+    env = os.environ.get("MITMDUMP_BIN", "")
+    if env and os.path.isfile(env):
+        return env
     local = os.path.join(_DIR, "venv", "bin", "mitmdump")
     if os.path.isfile(local):
         return local

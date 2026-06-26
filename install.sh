@@ -118,7 +118,7 @@ echo "" > "\$LOG_FILE"
 "\$MITM_BIN" -s "\$DIR/addon/mitm_dashboard.py" -p 8888 >> "\$LOG_FILE" 2>&1 &
 echo \$! >> "\$PID_FILE"
 
-"\$PYTHON_BIN" "\$DIR/serve.py" >> "\$LOG_FILE" 2>&1 &
+MITMDUMP_BIN="\$MITM_BIN" "\$PYTHON_BIN" "\$DIR/serve.py" >> "\$LOG_FILE" 2>&1 &
 echo \$! >> "\$PID_FILE"
 
 SCRIPT
