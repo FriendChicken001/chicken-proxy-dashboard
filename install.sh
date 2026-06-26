@@ -108,6 +108,11 @@ if [ -f "\$PID_FILE" ]; then
   sleep 1
 fi
 
+# Force-clear ports in case of orphan processes
+lsof -ti :4444 | xargs kill -9 2>/dev/null || true
+lsof -ti :8081 | xargs kill -9 2>/dev/null || true
+lsof -ti :8888 | xargs kill -9 2>/dev/null || true
+
 echo "" > "\$LOG_FILE"
 
 "\$MITM_BIN" -s "\$DIR/addon/mitm_dashboard.py" -p 8888 >> "\$LOG_FILE" 2>&1 &
