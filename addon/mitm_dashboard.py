@@ -603,6 +603,10 @@ class ResendFlowHandler(_CorsHandler):
 
 class StopProxyHandler(_CorsHandler):
     async def post(self) -> None:
+        try:
+            os.remove("/tmp/chickenproxy-proxy.pid")
+        except OSError:
+            pass
         self.finish(json.dumps({"ok": True}))
         tornado.ioloop.IOLoop.current().call_later(0.2, lambda: os.kill(os.getpid(), signal.SIGTERM))
 

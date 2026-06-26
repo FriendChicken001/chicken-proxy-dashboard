@@ -79,7 +79,7 @@ class DashboardWindowController: NSWindowController, WKNavigationDelegate, NSWin
         bg.wantsLayer = true
         bg.layer?.backgroundColor = NSColor(red: 0.1, green: 0.1, blue: 0.12, alpha: 1).cgColor
 
-        let label = NSTextField(labelWithString: "🐔  Starting ProxyChicken…")
+        let label = NSTextField(labelWithString: "🐔  Loading…")
         label.font = .systemFont(ofSize: 16, weight: .medium)
         label.textColor = .secondaryLabelColor
         label.translatesAutoresizingMaskIntoConstraints = false
@@ -117,9 +117,9 @@ class DashboardWindowController: NSWindowController, WKNavigationDelegate, NSWin
         }
     }
 
-    // Keep window object alive after closing so we can reuse it
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         window?.orderOut(nil)
+        runScript("serve-stop.sh")
         return false
     }
 
@@ -290,13 +290,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_: Notification) {
-        if isRunning() {
-            let p = Process()
-            p.launchPath = "/bin/bash"
-            p.arguments = ["\(kProjectDir)/stop.sh"]
-            try? p.run()
-            p.waitUntilExit()
-        }
+        let p = Process()
+        p.launchPath = "/bin/bash"
+        p.arguments = ["\(kProjectDir)/quit.sh"]
+        try? p.run()
+        p.waitUntilExit()
     }
 
     @objc func copyProxyAddress() {
@@ -311,7 +309,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if dashboardWC?.window?.isVisible == true {
             dashboardWC?.bringToFront()
         } else {
-            dashboardWC?.open()
+            runScript("serve-start.sh")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+                self?.dashboardWC?.open()
+            }
         }
     }
 }

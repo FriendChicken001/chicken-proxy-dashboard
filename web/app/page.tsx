@@ -169,13 +169,9 @@ export default function Page() {
 
         <div className={`inline-flex items-center gap-[7px] px-[14px] py-[5px] border rounded-full bg-[var(--panel)] text-xs text-[var(--muted)] whitespace-nowrap ${statusBorderColor}`}>
           <span className={`w-2 h-2 rounded-full flex-shrink-0 ${ledColor}`} />
-          <span className={statusLabelColor}>
-            {conn === "live" ? "Live" : conn === "connecting" ? "Connecting…" : "Offline"}
-          </span>
-          {connection && (
+          {conn === "live" && connection ? (
             <>
-              <span className="w-px h-[14px] bg-[var(--border)] mx-[2px]" />
-              <span className="text-[var(--text)] text-xs font-mono">{connection.lan_ip}</span>
+              <span className="text-[var(--text)] font-mono">{connection.lan_ip}</span>
               <span className="text-[var(--faint)]">:</span>
               <input
                 className={`bg-transparent border-none outline-none font-mono text-xs w-11 p-0 ${portValid ? "text-[var(--text)]" : "text-[var(--red)]"}`}
@@ -186,6 +182,10 @@ export default function Page() {
                 title="Proxy port"
               />
             </>
+          ) : (
+            <span className={statusLabelColor}>
+              {conn === "connecting" ? "Connecting…" : "Offline"}
+            </span>
           )}
         </div>
 

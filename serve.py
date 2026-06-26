@@ -4,7 +4,11 @@ import http.server
 import json
 import os
 import shutil
+import signal
 import subprocess
+
+# Auto-reap child processes so dead mitmproxy doesn't become a zombie
+signal.signal(signal.SIGCHLD, signal.SIG_IGN)
 
 PORT = 4444
 PID_FILE = "/tmp/chickenproxy.pid"

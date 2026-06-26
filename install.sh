@@ -91,55 +91,105 @@ echo ""
 echo "All dependencies found."
 echo ""
 
-# ── Generate start.sh / stop.sh ───────────────────────────────────────────────
+# ── Build Next.js static export (if npm available) ────────────────────────────
 
+NPM_BIN=$(command -v npm 2>/dev/null || true)
+if [ -n "$NPM_BIN" ]; then
+  echo "🔨 Building dashboard..."
+  (cd "$DIR/web" && "$NPM_BIN" run build --silent)
+  echo "   done"
+  echo ""
+fi
+
+# ── Generate scripts ──────────────────────────────────────────────────────────
+
+# serve-start.sh — start serve.py only (idempotent, called on dashboard open)
+cat > "$DIR/serve-start.sh" << SCRIPT
+#!/bin/bash
+PYTHON_BIN="$PYTHON_BIN"
+MITM_BIN="$MITM_BIN"
+DIR="$DIR"
+SERVE_PID_FILE="/tmp/chickenproxy-serve.pid"
+LOG_FILE="/tmp/chickenproxy.log"
+
+if [ -f "\$SERVE_PID_FILE" ]; then
+  PID=\$(cat "\$SERVE_PID_FILE")
+  kill -0 "\$PID" 2>/dev/null && exit 0
+  rm -f "\$SERVE_PID_FILE"
+fi
+
+lsof -ti :4444 | xargs kill -9 2>/dev/null || true
+
+MITMDUMP_BIN="\$MITM_BIN" "\$PYTHON_BIN" "\$DIR/serve.py" >> "\$LOG_FILE" 2>&1 &
+echo \$! > "\$SERVE_PID_FILE"
+SCRIPT
+
+# start.sh — start mitmproxy proxy only (serve.py already running)
 cat > "$DIR/start.sh" << SCRIPT
 #!/bin/bash
 MITM_BIN="$MITM_BIN"
-PYTHON_BIN="$PYTHON_BIN"
-
 DIR="$DIR"
-PID_FILE="/tmp/chickenproxy.pid"
+PROXY_PID_FILE="/tmp/chickenproxy-proxy.pid"
 LOG_FILE="/tmp/chickenproxy.log"
 
-if [ -f "\$PID_FILE" ]; then
-  kill \$(cat "\$PID_FILE") 2>/dev/null || true
-  rm -f "\$PID_FILE"
-  sleep 1
+if [ -f "\$PROXY_PID_FILE" ]; then
+  PID=\$(cat "\$PROXY_PID_FILE")
+  kill -0 "\$PID" 2>/dev/null && exit 0
+  rm -f "\$PROXY_PID_FILE"
 fi
 
-# Force-clear ports in case of orphan processes
-lsof -ti :4444 | xargs kill -9 2>/dev/null || true
 lsof -ti :8081 | xargs kill -9 2>/dev/null || true
 lsof -ti :8888 | xargs kill -9 2>/dev/null || true
 
-echo "" > "\$LOG_FILE"
-
 "\$MITM_BIN" -s "\$DIR/addon/mitm_dashboard.py" -p 8888 >> "\$LOG_FILE" 2>&1 &
 MITM_PID=\$!
-echo \$MITM_PID >> "\$PID_FILE"
-echo \$MITM_PID > "/tmp/chickenproxy-proxy.pid"
-
-MITMDUMP_BIN="\$MITM_BIN" "\$PYTHON_BIN" "\$DIR/serve.py" >> "\$LOG_FILE" 2>&1 &
-echo \$! >> "\$PID_FILE"
-
+echo \$MITM_PID > "\$PROXY_PID_FILE"
 SCRIPT
 
+# stop.sh — stop mitmproxy only (serve.py keeps running)
 cat > "$DIR/stop.sh" << SCRIPT
 #!/bin/bash
-PID_FILE="/tmp/chickenproxy.pid"
+PROXY_PID_FILE="/tmp/chickenproxy-proxy.pid"
 
-if [ -f "\$PID_FILE" ]; then
-  kill \$(cat "\$PID_FILE") 2>/dev/null || true
-  rm -f "\$PID_FILE"
+if [ -f "\$PROXY_PID_FILE" ]; then
+  kill \$(cat "\$PROXY_PID_FILE") 2>/dev/null || true
+  rm -f "\$PROXY_PID_FILE"
 else
   pkill -f "mitm_dashboard.py" 2>/dev/null || true
-  pkill -f "serve.py" 2>/dev/null || true
 fi
-rm -f "/tmp/chickenproxy-proxy.pid"
 SCRIPT
 
-chmod +x "$DIR/start.sh" "$DIR/stop.sh"
+# serve-stop.sh — stop serve.py only (called when dashboard window closes)
+cat > "$DIR/serve-stop.sh" << SCRIPT
+#!/bin/bash
+SERVE_PID_FILE="/tmp/chickenproxy-serve.pid"
+
+if [ -f "\$SERVE_PID_FILE" ]; then
+  kill \$(cat "\$SERVE_PID_FILE") 2>/dev/null || true
+  rm -f "\$SERVE_PID_FILE"
+fi
+lsof -ti :4444 | xargs kill -9 2>/dev/null || true
+SCRIPT
+
+# quit.sh — stop everything including serve.py (called on app quit)
+cat > "$DIR/quit.sh" << SCRIPT
+#!/bin/bash
+PROXY_PID_FILE="/tmp/chickenproxy-proxy.pid"
+SERVE_PID_FILE="/tmp/chickenproxy-serve.pid"
+
+if [ -f "\$PROXY_PID_FILE" ]; then
+  kill \$(cat "\$PROXY_PID_FILE") 2>/dev/null || true
+  rm -f "\$PROXY_PID_FILE"
+fi
+if [ -f "\$SERVE_PID_FILE" ]; then
+  kill \$(cat "\$SERVE_PID_FILE") 2>/dev/null || true
+  rm -f "\$SERVE_PID_FILE"
+fi
+pkill -f "mitm_dashboard.py" 2>/dev/null || true
+pkill -f "serve.py" 2>/dev/null || true
+SCRIPT
+
+chmod +x "$DIR/serve-start.sh" "$DIR/serve-stop.sh" "$DIR/start.sh" "$DIR/stop.sh" "$DIR/quit.sh"
 
 # ── Build menu bar app ────────────────────────────────────────────────────────
 
