@@ -42,10 +42,11 @@ export default function Page() {
   const [proxyStarting, setProxyStarting] = useState(false);
 
   useEffect(() => {
+    if (conn !== "live") return;
     fetchConnection()
       .then((c) => { setConnection(c); setPortInput(String(c.proxy_port)); })
       .catch(() => {});
-  }, []);
+  }, [conn]);
 
   const proxyPort = parseInt(portInput, 10) || connection?.proxy_port || 8080;
   const portValid = /^\d{1,5}$/.test(portInput) && proxyPort >= 1 && proxyPort <= 65535;
@@ -171,7 +172,7 @@ export default function Page() {
           <span className={`w-2 h-2 rounded-full flex-shrink-0 ${ledColor}`} />
           {conn === "live" && connection ? (
             <>
-              <span className="text-[var(--text)] font-mono">{connection.lan_ip}</span>
+              <span className={`font-mono ${statusLabelColor}`}>{connection.lan_ip}</span>
               <span className="text-[var(--faint)]">:</span>
               <input
                 className={`bg-transparent border-none outline-none font-mono text-xs w-11 p-0 ${portValid ? "text-[var(--text)]" : "text-[var(--red)]"}`}
@@ -184,7 +185,7 @@ export default function Page() {
             </>
           ) : (
             <span className={statusLabelColor}>
-              {conn === "connecting" ? "Connecting…" : "Offline"}
+              {conn === "live" ? "Live" : conn === "connecting" ? "Connecting…" : "Offline"}
             </span>
           )}
         </div>
@@ -220,13 +221,13 @@ export default function Page() {
           className={`bg-[var(--panel-2)] border rounded-[7px] px-3 py-[6px] text-xs cursor-pointer transition-colors ${breakpoints.length > 0 ? "text-[var(--amber)] border-[color-mix(in_srgb,var(--amber)_40%,var(--border))] hover:bg-[color-mix(in_srgb,var(--amber)_6%,transparent)]" : "text-[var(--text)] border-[var(--border)] hover:bg-[#232c3d]"}`}
           onClick={() => setBpOpen(true)}
         >
-          ⏸ Breakpoints{breakpoints.length ? ` (${breakpoints.length})` : ""}
+          <img src="/chicken-breakpoint.svg" width={14} height={14} alt="" style={{ display: "inline-block", verticalAlign: "middle", marginRight: 5 }} />Breakpoints{breakpoints.length ? ` (${breakpoints.length})` : ""}
         </button>
         <button
           className="bg-[var(--panel-2)] text-[var(--accent)] border border-[var(--accent)] rounded-[7px] px-3 py-[6px] text-xs cursor-pointer hover:bg-[#1c2740] transition-colors"
           onClick={() => setShowConnect(true)}
         >
-          📱 Connect devices
+          <img src="/chicken-connect.svg" width={14} height={14} alt="" style={{ display: "inline-block", verticalAlign: "middle", marginRight: 5 }} />Connect devices
         </button>
         <button
           className={`inline-flex items-center justify-center w-8 h-8 rounded-lg p-0 border text-base leading-none cursor-pointer transition-colors ${
@@ -324,6 +325,7 @@ export default function Page() {
         }}
         pinnedIds={pinnedIds}
         onPin={onPin}
+        diffBaseId={diffBase?.id ?? null}
       />
 
       {selected && (
@@ -391,7 +393,11 @@ export default function Page() {
             { separator: true, label: "", onClick: () => {} },
             diffBase && diffBase.id !== menu.flow.id
               ? { label: `⚡ Diff with "${diffBase.path.slice(0,30)}"`, onClick: () => setDiffTarget(menu.flow) }
-              : { label: diffBase?.id === menu.flow.id ? "✓ Set as diff base" : "⚡ Set as diff base", onClick: () => setDiffBase(menu.flow) },
+              : { label: diffBase?.id === menu.flow.id ? "✕ Clear diff base" : "⚡ Set as diff base", onClick: () => {
+                  const clearing = diffBase?.id === menu.flow.id;
+                  setDiffBase(clearing ? null : menu.flow);
+                  if (!clearing) setPinnedIds(prev => new Set([...prev, menu.flow.id]));
+                }},
             { separator: true, label: "", onClick: () => {} },
             {
               label: "📋 Copy URL",

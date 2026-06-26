@@ -36,6 +36,7 @@ export default function FlowTable({
   onContext,
   pinnedIds,
   onPin,
+  diffBaseId,
 }: {
   flows: FlowSummary[];
   selectedId: string | null;
@@ -43,6 +44,7 @@ export default function FlowTable({
   onContext: (e: MouseEvent, f: FlowSummary) => void;
   pinnedIds: Set<string>;
   onPin: (id: string) => void;
+  diffBaseId: string | null;
 }) {
   const sorted = [...flows].sort((a, b) => (pinnedIds.has(b.id) ? 1 : 0) - (pinnedIds.has(a.id) ? 1 : 0));
 
@@ -70,16 +72,20 @@ export default function FlowTable({
             <th className="sticky top-0 z-[2] bg-[var(--bg-2)] text-[var(--muted)] text-left font-medium text-[11px] uppercase tracking-[0.03em] px-[10px] py-[9px] border-b border-[var(--border)]" style={{ width: 90 }}>Type</th>
             <th className="sticky top-0 z-[2] bg-[var(--bg-2)] text-[var(--muted)] text-left font-medium text-[11px] uppercase tracking-[0.03em] px-[10px] py-[9px] border-b border-[var(--border)] text-right" style={{ width: 70 }}>Size</th>
             <th className="sticky top-0 z-[2] bg-[var(--bg-2)] text-[var(--muted)] text-left font-medium text-[11px] uppercase tracking-[0.03em] px-[10px] py-[9px] border-b border-[var(--border)] text-right" style={{ width: 70 }}>Time</th>
+            <th className="sticky top-0 z-[2] bg-[var(--bg-2)] border-b border-[var(--border)]" style={{ width: 28 }}></th>
           </tr>
         </thead>
         <tbody>
           {sorted.map((f) => {
             const isPinned = pinnedIds.has(f.id);
             const isSelected = f.id === selectedId;
+            const isDiffBase = f.id === diffBaseId;
             const rowBg = isSelected
               ? "bg-[var(--panel-2)]"
               : f.intercepted
               ? "bg-[color-mix(in_srgb,var(--amber)_6%,transparent)] hover:bg-[color-mix(in_srgb,var(--amber)_10%,transparent)]"
+              : isDiffBase
+              ? "bg-[color-mix(in_srgb,var(--purple)_8%,transparent)] hover:bg-[color-mix(in_srgb,var(--purple)_12%,transparent)]"
               : isPinned
               ? "bg-[color-mix(in_srgb,var(--accent)_5%,transparent)]"
               : "hover:bg-[var(--panel)]";
@@ -88,7 +94,8 @@ export default function FlowTable({
                 key={f.id}
                 className={`border-b border-[var(--bg-2)] cursor-pointer group ${rowBg}`}
                 onClick={() => onSelect(f)}
-                onContextMenu={(e) => onContext(e, f)}
+                onContextMenu={(e) => { e.preventDefault(); onContext(e, f); }}
+                onMouseDown={(e) => { if (e.button === 2) { e.preventDefault(); onContext(e, f); } }}
               >
                 <td className="px-[10px] py-[7px] align-middle">
                   <button
@@ -102,14 +109,17 @@ export default function FlowTable({
                   </button>
                 </td>
                 <td className="px-[10px] py-[7px] align-middle">
-                  {f.intercepted && (
-                    <span className="inline-flex items-center text-[11px] px-1 text-[var(--amber)]" title={f.breakpoint_name ?? "intercepted"}>
-                      ⏸
+                  {isDiffBase && (
+                    <span className="inline-flex items-center text-[11px] px-1 text-[var(--purple)]" title="Diff base">⚡</span>
+                  )}
+                  {f.intercepted && !isDiffBase && (
+                    <span className="inline-flex items-center justify-center rounded-[6px] px-[3px] py-[1px]" title={f.breakpoint_name ?? "intercepted"} style={{ background: "color-mix(in srgb, var(--amber) 18%, transparent)" }}>
+                      <img src="/chicken-breakpoint.svg" width={32} height={32} alt="breakpoint" style={{ display: "inline-block", verticalAlign: "middle" }} />
                     </span>
                   )}
-                  {f.mocked && !f.intercepted && (
-                    <span className="inline-flex items-center gap-1 text-[11px] px-1 mr-1" title={f.mock_name ?? "mocked"}>
-                      <img src="/chicken-icon.svg" width={14} height={14} alt="mocked" style={{ display: "inline-block", verticalAlign: "middle" }} />
+                  {f.mocked && !f.intercepted && !isDiffBase && (
+                    <span className="inline-flex items-center justify-center rounded-[6px] px-[3px] py-[1px]" title={f.mock_name ?? "mocked"} style={{ background: "color-mix(in srgb, var(--accent) 18%, transparent)" }}>
+                      <img src="/chicken-icon.svg" width={32} height={32} alt="mocked" style={{ display: "inline-block", verticalAlign: "middle" }} />
                     </span>
                   )}
                 </td>
@@ -143,6 +153,13 @@ export default function FlowTable({
                 </td>
                 <td className="px-[10px] py-[7px] align-middle font-mono text-xs text-[var(--muted)] text-right">
                   {ms(f.duration_ms)}
+                </td>
+                <td className="px-[4px] py-[7px] align-middle text-center">
+                  <button
+                    className="opacity-0 group-hover:opacity-100 bg-transparent border-none text-[var(--muted)] hover:text-[var(--text)] cursor-pointer px-[6px] py-[2px] rounded text-[16px] leading-none transition-all"
+                    title="More actions"
+                    onClick={(e) => { e.stopPropagation(); onContext(e as unknown as React.MouseEvent, f); }}
+                  >⋮</button>
                 </td>
               </tr>
             );
