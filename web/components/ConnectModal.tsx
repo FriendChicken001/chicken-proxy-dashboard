@@ -4,13 +4,14 @@ import { useEffect, useState } from "react";
 import { fetchConnection } from "@/lib/api";
 import type { Connection } from "@/lib/types";
 
-type Plat = "ios" | "android" | "device" | "flutter";
+type Plat = "ios" | "android" | "device" | "flutter" | "web";
 
 const PLATFORMS: { key: Plat; label: string; sub: string }[] = [
   { key: "ios",     label: "iOS",      sub: "Simulator"   },
   { key: "android", label: "Android",  sub: "Emulator"    },
   { key: "device",  label: "Physical", sub: "Device"      },
   { key: "flutter", label: "Flutter",  sub: "Dart / HTTP" },
+  { key: "web",     label: "Web",      sub: "Browser"     },
 ];
 
 export default function ConnectModal({ onClose, port }: { onClose: () => void; port: number }) {
@@ -30,6 +31,8 @@ export default function ConnectModal({ onClose, port }: { onClose: () => void; p
       ? conn?.loopback ?? "127.0.0.1"
       : plat === "android"
       ? conn?.android_emulator_host ?? "10.0.2.2"
+      : plat === "web"
+      ? "127.0.0.1"
       : conn?.lan_ip ?? "—";
 
   return (
@@ -53,7 +56,7 @@ export default function ConnectModal({ onClose, port }: { onClose: () => void; p
 
         {conn && (
           <>
-            <div className="grid gap-2 px-6 py-4 border-b border-[var(--border)] flex-shrink-0" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
+            <div className="grid gap-2 px-6 py-4 border-b border-[var(--border)] flex-shrink-0" style={{ gridTemplateColumns: "repeat(5, 1fr)" }}>
               {PLATFORMS.map(({ key, label, sub }) => (
                 <button
                   key={key}
@@ -80,6 +83,7 @@ export default function ConnectModal({ onClose, port }: { onClose: () => void; p
               {plat === "android" && <AndroidSteps host={host} port={port} certUrl={conn.cert_url_android ?? conn.cert_url} />}
               {plat === "device"  && <DeviceSteps  ip={conn.lan_ip} port={port} certUrl={conn.cert_url} />}
               {plat === "flutter" && <FlutterSteps host={host} port={port} />}
+              {plat === "web"     && <WebSteps     port={port} certUrl={conn.cert_url_loopback ?? conn.cert_url} />}
             </div>
           </>
         )}
@@ -197,6 +201,36 @@ function DeviceSteps({ ip, port, certUrl }: { ip: string; port: number; certUrl:
         Open the CA URL on the device to install and trust the mitmproxy certificate:
         <CopyBlock text={certUrl} />
         See the iOS / Android tabs for the exact trust steps per platform.
+      </Step>
+    </div>
+  );
+}
+
+function WebSteps({ port, certUrl }: { port: number; certUrl: string }) {
+  return (
+    <div className="flex flex-col gap-5">
+      <Step n={1}>
+        <strong>Chrome / Safari</strong> — set the <strong>macOS system proxy</strong>:<br />
+        System Settings → Network → your interface → Details → Proxies<br />
+        Enable <strong>Web Proxy (HTTP)</strong> and <strong>Secure Web Proxy (HTTPS)</strong> →
+        host <code>127.0.0.1</code>, port <code>{port}</code>
+      </Step>
+      <Step n={2}>
+        <strong>Firefox</strong> — has its own proxy settings:<br />
+        Preferences → General → Network Settings → Manual proxy configuration<br />
+        HTTP Proxy <code>127.0.0.1</code> port <code>{port}</code> → check <strong>Also use this proxy for HTTPS</strong>
+      </Step>
+      <Step n={3}>
+        Install the mitmproxy CA certificate so HTTPS traffic decrypts without warnings.<br />
+        Open this URL in the browser you want to inspect:
+        <CopyBlock text={certUrl} />
+        Then trust/install the downloaded <code>.pem</code> file:<br />
+        <strong>macOS:</strong> double-click → Keychain Access → set to <em>Always Trust</em><br />
+        <strong>Firefox:</strong> Preferences → Privacy → Certificates → View Certificates → Authorities → Import
+      </Step>
+      <Step n={4}>
+        Or launch Chrome with the proxy pre-set (no system-level change needed):
+        <CodeBlock code={`open -a "Google Chrome" --args --proxy-server="127.0.0.1:${port}"`} />
       </Step>
     </div>
   );

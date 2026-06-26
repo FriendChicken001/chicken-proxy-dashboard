@@ -3,7 +3,6 @@ import Foundation
 import WebKit
 
 let kProjectDir   = "__PROJECT_DIR__"
-let kPidFile      = "/tmp/chickenproxy.pid"
 let kProxyPidFile = "/tmp/chickenproxy-proxy.pid"
 let kDashboardURL = "http://localhost:4444"
 
@@ -22,8 +21,6 @@ func runScript(_ name: String) {
     p.arguments  = ["\(kProjectDir)/\(name)"]
     try? p.run()
 }
-
-// ── Dashboard window ───────────────────────────────────────────────────────────
 
 class DashboardWindowController: NSWindowController, WKNavigationDelegate, NSWindowDelegate {
     private var webView: WKWebView!
@@ -47,14 +44,12 @@ class DashboardWindowController: NSWindowController, WKNavigationDelegate, NSWin
 
         let content = window.contentView!
 
-        // WebView
         let config = WKWebViewConfiguration()
         webView = WKWebView(frame: .zero, configuration: config)
         webView.translatesAutoresizingMaskIntoConstraints = false
         webView.navigationDelegate = self
         content.addSubview(webView)
 
-        // Loading overlay
         loadingView = makeLoadingView()
         loadingView.translatesAutoresizingMaskIntoConstraints = false
         content.addSubview(loadingView)
@@ -104,8 +99,6 @@ class DashboardWindowController: NSWindowController, WKNavigationDelegate, NSWin
         webView.load(URLRequest(url: URL(string: kDashboardURL)!))
     }
 
-    // Navigation callbacks
-
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         loadingView.isHidden = true
     }
@@ -128,8 +121,6 @@ class DashboardWindowController: NSWindowController, WKNavigationDelegate, NSWin
         NSApp.activate(ignoringOtherApps: true)
     }
 }
-
-// ── App delegate ───────────────────────────────────────────────────────────────
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem!
@@ -231,11 +222,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 self.statusMenuItem.attributedTitle = nil
                 self.statusMenuItem.title = "○ Stopped"
                 self.toggleMenuItem.title = "Start ProxyChicken"
-                if self.wasRunning {
-                    self.stopAnimation()
-                } else if !self.wasRunning {
-                    self.setStoppedIcon()
-                }
+                if self.wasRunning { self.stopAnimation() } else { self.setStoppedIcon() }
             }
             self.wasRunning = running
         }
