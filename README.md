@@ -28,7 +28,7 @@ traffic charts, full request inspection, response mocking, and breakpoint interc
 - **Stats & charts** – requests/sec, top hosts with one-click traffic filter.
 - **Mock** – right-click any flow → return a canned response; rules are ordered and reorderable.
 - **Groups** – organise mock rules into named groups.
-- **Diff** – compare two response bodies side-by-side with LCS line diffing.
+- **Diff** – compare two response bodies side-by-side; JSON is auto-formatted before diffing. Set a flow as diff base (auto-pins it), then compare any other flow against it.
 - **Pin** – pin flows to the top of the log.
 - **Body search** – search across all captured request/response bodies.
 - **Connect guide** – step-by-step proxy setup for iOS, Android, physical devices, Flutter, and web browsers.
@@ -119,7 +119,7 @@ Open the dashboard at **http://localhost:4444**.
 
 ## Connecting clients
 
-Click **📱 Connect** in the dashboard header for step-by-step instructions. Quick reference:
+Click **Connect devices** in the dashboard header for step-by-step instructions. Quick reference:
 
 | Target | Proxy address | Notes |
 |--------|--------------|-------|
@@ -135,7 +135,7 @@ Install and trust the mitmproxy CA from <http://mitm.it> on each target to decry
 
 ## Mocking responses
 
-- **Right-click** any flow → **Mock this response** — prefills a rule from that flow.
+- Click the **⋮** button on any flow row (or right-click) → **Mock this response** — prefills a rule from that flow.
 - Open **Mocks** in the header to add, edit, enable/disable, reorder, or delete rules.
 - A rule matches on **method + URL contains** substring. First enabled match wins.
 - Rules persist to `addon/mocks.json` across restarts.
@@ -145,8 +145,9 @@ Install and trust the mitmproxy CA from <http://mitm.it> on each target to decry
 ## Breakpoints
 
 - Open **Breakpoints** in the header to define intercept rules by method and URL pattern.
-- Matching in-flight requests appear as **intercepted** in the flow list.
+- Matching in-flight requests appear marked with a baby chick icon in the flow list.
 - From the detail drawer: **Resume**, **Edit & Resume**, or **Abort**.
+- Add a breakpoint for any flow via the **⋮** button or the detail drawer.
 
 ---
 
