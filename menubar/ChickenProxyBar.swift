@@ -288,6 +288,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    func applicationWillTerminate(_: Notification) {
+        if isRunning() {
+            let p = Process()
+            p.launchPath = "/bin/bash"
+            p.arguments = ["\(kProjectDir)/stop.sh"]
+            try? p.run()
+            p.waitUntilExit()
+        }
+    }
+
     @objc func copyProxyAddress() {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString("127.0.0.1:8888", forType: .string)
