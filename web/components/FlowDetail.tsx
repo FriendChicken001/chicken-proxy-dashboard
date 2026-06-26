@@ -227,7 +227,7 @@ export default function FlowDetailDrawer({
                 )}
                 {isIntercepted && (
                   <span className="inline-flex items-center gap-1 text-[11px] px-[7px] py-[1px] rounded-full bg-[color-mix(in_srgb,var(--amber)_12%,transparent)] text-[var(--amber)] border border-[color-mix(in_srgb,var(--amber)_30%,transparent)] ml-2">
-                    ⏸ {detail.breakpoint_name ?? "intercepted"}
+                    <img src="/chicken-breakpoint.svg" width={12} height={12} alt="" style={{ display: "inline-block", verticalAlign: "middle" }} /> {detail.breakpoint_name ?? "intercepted"}
                   </span>
                 )}
               </div>
@@ -260,7 +260,7 @@ export default function FlowDetailDrawer({
                   <button
                     className="bg-[var(--panel-2)] text-[var(--amber)] border border-[color-mix(in_srgb,var(--amber)_50%,var(--border))] rounded-[7px] px-3 py-[6px] text-xs cursor-pointer hover:bg-[color-mix(in_srgb,var(--amber)_8%,transparent)] transition-colors"
                     onClick={() => onBreakpoint(detail.host + detail.path, detail.method)}
-                  >⏸ Add breakpoint</button>
+                  ><img src="/chicken-breakpoint.svg" width={14} height={14} alt="" style={{ display: "inline-block", verticalAlign: "middle", marginRight: 5 }} />Add breakpoint</button>
                 )}
               </div>
 
