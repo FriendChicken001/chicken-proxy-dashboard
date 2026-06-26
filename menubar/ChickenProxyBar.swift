@@ -36,7 +36,7 @@ class DashboardWindowController: NSWindowController, WKNavigationDelegate, NSWin
             backing: .buffered,
             defer: false
         )
-        window.title = "ChickenProxy"
+        window.title = "ProxyChicken"
         window.minSize = NSSize(width: 800, height: 500)
         window.setFrameAutosaveName("DashboardWindow")
         window.center()
@@ -78,7 +78,7 @@ class DashboardWindowController: NSWindowController, WKNavigationDelegate, NSWin
         bg.wantsLayer = true
         bg.layer?.backgroundColor = NSColor(red: 0.1, green: 0.1, blue: 0.12, alpha: 1).cgColor
 
-        let label = NSTextField(labelWithString: "🐔  Starting ChickenProxy…")
+        let label = NSTextField(labelWithString: "🐔  Starting ProxyChicken…")
         label.font = .systemFont(ofSize: 16, weight: .medium)
         label.textColor = .secondaryLabelColor
         label.translatesAutoresizingMaskIntoConstraints = false
@@ -141,6 +141,30 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     let runFrames = ["🐔", "🐓", "🐔", "🐤", "🍗", "🐤", "🐔", "🥚"]
     var dashboardWC: DashboardWindowController?
 
+    private func bundleImage(named base: String) -> NSImage? {
+        let imgDir = Bundle.main.resourceURL?.appendingPathComponent("img")
+        let ext = (base as NSString).pathExtension
+        let stem = (base as NSString).deletingPathExtension
+
+        guard let url1x = imgDir?.appendingPathComponent(base),
+              let data1x = try? Data(contentsOf: url1x),
+              let rep1x = NSBitmapImageRep(data: data1x) else { return nil }
+
+        let img = NSImage()
+        img.addRepresentation(rep1x)
+
+        let name2x = "\(stem)@2x.\(ext)"
+        if let url2x = imgDir?.appendingPathComponent(name2x),
+           let data2x = try? Data(contentsOf: url2x),
+           let rep2x = NSBitmapImageRep(data: data2x) {
+            rep2x.size = NSSize(width: rep2x.pixelsWide / 2, height: rep2x.pixelsHigh / 2)
+            img.addRepresentation(rep2x)
+        }
+
+        img.isTemplate = true
+        return img
+    }
+
     func applicationDidFinishLaunching(_: Notification) {
         let others = NSRunningApplication.runningApplications(withBundleIdentifier: "com.chickenproxy.menubar")
             .filter { $0 != NSRunningApplication.current }
@@ -153,6 +177,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.button?.font = NSFont.systemFont(ofSize: 14)
+        setStoppedIcon()
 
         let menu = NSMenu()
 
@@ -162,7 +187,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         menu.addItem(.separator())
 
-        toggleMenuItem = NSMenuItem(title: "Start ChickenProxy", action: #selector(toggle), keyEquivalent: "")
+        toggleMenuItem = NSMenuItem(title: "Start ProxyChicken", action: #selector(toggle), keyEquivalent: "")
         toggleMenuItem.target = self
         menu.addItem(toggleMenuItem)
 
@@ -175,10 +200,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let copyItem = NSMenuItem(title: "Copy Proxy Address", action: #selector(copyProxyAddress), keyEquivalent: "c")
         copyItem.target = self
         menu.addItem(copyItem)
-
-        let logsItem = NSMenuItem(title: "Open Logs", action: #selector(openLogs), keyEquivalent: "l")
-        logsItem.target = self
-        menu.addItem(logsItem)
 
         menu.addItem(.separator())
 
@@ -198,25 +219,52 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self else { return }
             let running = isRunning()
             if running {
-                self.statusMenuItem.title = "● Running"
-                self.toggleMenuItem.title = "Stop ChickenProxy"
+                let dot = NSAttributedString(string: "● ", attributes: [.foregroundColor: NSColor.systemGreen])
+                let rest = NSAttributedString(string: "Running")
+                let full = NSMutableAttributedString(attributedString: dot)
+                full.append(rest)
+                self.statusMenuItem.attributedTitle = full
+                self.toggleMenuItem.title = "Stop ProxyChicken"
                 if !self.wasRunning { self.startAnimation() }
             } else {
+                self.statusMenuItem.attributedTitle = nil
                 self.statusMenuItem.title = "○ Stopped"
-                self.toggleMenuItem.title = "Start ChickenProxy"
+                self.toggleMenuItem.title = "Start ProxyChicken"
                 if self.wasRunning {
                     self.stopAnimation()
                 } else if !self.wasRunning {
-                    self.statusItem.button?.title = "🐔💤"
+                    self.setStoppedIcon()
                 }
             }
             self.wasRunning = running
         }
     }
 
+    private func setStoppedIcon() {
+        if let img = bundleImage(named: "ProxyPausedTemplate.png") {
+            statusItem.button?.image = img
+            statusItem.button?.title = ""
+        } else {
+            statusItem.button?.image = nil
+            statusItem.button?.title = "🐔💤"
+        }
+    }
+
+    private func setRunningIcon() {
+        if let img = bundleImage(named: "ProxyActiveTemplate.png") {
+            statusItem.button?.image = img
+            statusItem.button?.title = ""
+        } else {
+            statusItem.button?.image = nil
+            statusItem.button?.title = runFrames[frameIndex]
+        }
+    }
+
     func startAnimation() {
         frameIndex = 0
         animTimer?.invalidate()
+        setRunningIcon()
+        guard bundleImage(named: "ProxyActiveTemplate.png") == nil else { return }
         animTimer = Timer.scheduledTimer(withTimeInterval: 0.35, repeats: true) { [weak self] _ in
             guard let self else { return }
             self.frameIndex = (self.frameIndex + 1) % self.runFrames.count
@@ -227,7 +275,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func stopAnimation() {
         animTimer?.invalidate()
         animTimer = nil
-        statusItem.button?.title = "🐔💤"
+        setStoppedIcon()
     }
 
     @objc func toggle() {
@@ -243,17 +291,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func copyProxyAddress() {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString("127.0.0.1:8888", forType: .string)
-    }
-
-    @objc func openLogs() {
-        let script = """
-        tell application "Terminal"
-            activate
-            do script "tail -f /tmp/chickenproxy.log"
-        end tell
-        """
-        var error: NSDictionary?
-        NSAppleScript(source: script)?.executeAndReturnError(&error)
     }
 
     @objc func openDashboard() {

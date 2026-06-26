@@ -139,21 +139,34 @@ SCRATCH=$(mktemp -d)
 SWIFT_SRC="$SCRATCH/ChickenProxyBar.swift"
 BINARY="$DIR/menubar/ChickenProxyBar"
 ICON_BIN="$DIR/menubar/make_icon"
-APP_BUNDLE=~/Desktop/"🐔 ChickenProxy Bar.app"
+APP_BUNDLE=~/Desktop/"ProxyChicken.app"
 
 sed "s|__PROJECT_DIR__|$DIR|g" "$DIR/menubar/ChickenProxyBar.swift" > "$SWIFT_SRC"
 
 swiftc "$SWIFT_SRC" -framework Cocoa -framework Foundation -framework WebKit -o "$BINARY" 2>&1
-swiftc "$DIR/menubar/make_icon.swift" -framework Cocoa -o "$ICON_BIN" 2>&1
 
-"$ICON_BIN" "🐔" "$SCRATCH/AppIcon.icns"
+# App icon: use iconset from img/ if available, else generate from emoji
+ICONSET_DIR="$DIR/img/chicken-stealth-icon/AppIcon.iconset"
+if [ -d "$ICONSET_DIR" ]; then
+  iconutil -c icns "$ICONSET_DIR" -o "$SCRATCH/AppIcon.icns"
+else
+  swiftc "$DIR/menubar/make_icon.swift" -framework Cocoa -o "$ICON_BIN" 2>&1
+  "$ICON_BIN" "🐔" "$SCRATCH/AppIcon.icns"
+fi
 
 rm -rf "$APP_BUNDLE"
 mkdir -p "$APP_BUNDLE/Contents/MacOS"
-mkdir -p "$APP_BUNDLE/Contents/Resources"
+mkdir -p "$APP_BUNDLE/Contents/Resources/img"
 
 cp "$BINARY" "$APP_BUNDLE/Contents/MacOS/ChickenProxyBar"
 cp "$SCRATCH/AppIcon.icns" "$APP_BUNDLE/Contents/Resources/AppIcon.icns"
+
+# Copy menubar icons into bundle
+MENUBAR_ICONS="$DIR/img/chicken-menubar-icons/Template-PNG"
+if [ -d "$MENUBAR_ICONS" ]; then
+  cp "$MENUBAR_ICONS"/ProxyActiveTemplate*.png  "$APP_BUNDLE/Contents/Resources/img/" 2>/dev/null || true
+  cp "$MENUBAR_ICONS"/ProxyPausedTemplate*.png  "$APP_BUNDLE/Contents/Resources/img/" 2>/dev/null || true
+fi
 
 cat > "$APP_BUNDLE/Contents/Info.plist" << PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -162,7 +175,7 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << PLIST
 <dict>
   <key>CFBundleExecutable</key>        <string>ChickenProxyBar</string>
   <key>CFBundleIdentifier</key>        <string>com.chickenproxy.menubar</string>
-  <key>CFBundleName</key>              <string>ChickenProxy Bar</string>
+  <key>CFBundleName</key>              <string>ProxyChicken</string>
   <key>CFBundleIconFile</key>          <string>AppIcon</string>
   <key>CFBundlePackageType</key>       <string>APPL</string>
   <key>CFBundleShortVersionString</key><string>1.0</string>
@@ -178,6 +191,6 @@ echo ""
 echo "══════════════════════════════"
 echo "✅ Done!"
 echo ""
-echo "   Open 🐔 ChickenProxy Bar.app on your Desktop"
+echo "   Open ProxyChicken.app on your Desktop"
 echo "   to control the proxy from the menu bar."
 echo ""
