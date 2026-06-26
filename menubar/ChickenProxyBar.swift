@@ -22,10 +22,12 @@ func runScript(_ name: String) {
     try? p.run()
 }
 
+
 class DashboardWindowController: NSWindowController, WKNavigationDelegate, NSWindowDelegate {
     private var webView: WKWebView!
     private var retryTimer: Timer?
     private var loadingView: NSView!
+    private var rightClickMonitor: Any?
 
     init() {
         let window = NSWindow(
@@ -91,6 +93,21 @@ class DashboardWindowController: NSWindowController, WKNavigationDelegate, NSWin
         showWindow(nil)
         NSApp.activate(ignoringOtherApps: true)
         loadDashboard()
+        if rightClickMonitor == nil {
+            rightClickMonitor = NSEvent.addLocalMonitorForEvents(matching: .rightMouseDown) { [weak self] event in
+                guard let self, let win = self.window, event.window == win else { return event }
+                let pt = self.webView.convert(event.locationInWindow, from: nil)
+                let x = pt.x
+                let y = self.webView.bounds.height - pt.y
+                self.webView.evaluateJavaScript("""
+                (function(){
+                    var el = document.elementFromPoint(\(x),\(y));
+                    if(el){ el.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,button:2,clientX:\(x),clientY:\(y)})); }
+                })();
+                """, completionHandler: nil)
+                return nil
+            }
+        }
     }
 
     private func loadDashboard() {
@@ -113,6 +130,7 @@ class DashboardWindowController: NSWindowController, WKNavigationDelegate, NSWin
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         window?.orderOut(nil)
         runScript("serve-stop.sh")
+        if let m = rightClickMonitor { NSEvent.removeMonitor(m); rightClickMonitor = nil }
         return false
     }
 

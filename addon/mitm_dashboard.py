@@ -292,15 +292,24 @@ def _flow_summary(flow: http.HTTPFlow) -> Dict[str, Any]:
 
 
 def _truncate_body(message, limit: int) -> Dict[str, Any]:
-    raw = message.raw_content or b""
+    try:
+        raw = message.raw_content or b""
+    except Exception:
+        raw = b""
     size = len(raw)
     text = None
     is_text = False
     try:
-        text = message.get_text(strict=False)
-        is_text = text is not None
+        content = message.content
+        if content:
+            text = content.decode("utf-8", errors="replace")
+            is_text = True
     except Exception:
-        text = None
+        try:
+            text = message.get_text(strict=False)
+            is_text = text is not None
+        except Exception:
+            pass
     if text is not None and len(text) > limit:
         text = text[:limit]
         truncated = True
